@@ -1,5 +1,6 @@
 local Luafinding = require("libs.luafinding")
 local Vector = require("libs.vector")
+local Explosions = require("src.fight")
 
 math.randomseed(os.time())
 love.graphics.setDefaultFilter('nearest', 'nearest')
@@ -143,18 +144,17 @@ function love.keyreleased(key)
     if key == "up" then
         vector.x = POS.x
         vector.y = POS.y - 1
-    end
-    if key == "down" then
+    elseif key == "down" then
         vector.x = POS.x
         vector.y = POS.y + 1
-    end
-    if key == "left" then
+    elseif key == "left" then
         vector.x = POS.x - 1
         vector.y = POS.y
-    end
-    if key == "right" then
+    elseif key == "right" then
         vector.x = POS.x + 1
         vector.y = POS.y
+    elseif key == "lctrl" then
+        Explosions.new(POS.x, POS.y, 30)
     end
     if vector.x and vector.y then
         if IsNotObstacle(vector, xlimit, ylimit) then
@@ -163,6 +163,7 @@ function love.keyreleased(key)
             MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, oldPos, POS)
         end
     end
+
     MoveEnemies()
 end
 
@@ -181,7 +182,7 @@ function love.load()
     GenerateEnemies()
 end
 
-function love.update()
+function love.update(dt)
     -- Fill the grid from registry
     for column = 1, gridWidth do
         for row = 1, gridHeight do
@@ -194,6 +195,7 @@ function love.update()
             otherGrid[column][row] = otherRegistry[column][row]
         end
     end
+    Explosions.update(dt)
 end
 
 -- Draw the grid
@@ -203,6 +205,7 @@ function love.draw()
     -- RENDER THE OTHER SIDE
     local otherGridStart = (gridWidth + 1)
     drawGrid(otherGrid, otherWidth, otherHeight, { .1, .1, .3 }, { 0, 1, 0 }, otherGridStart)
+    Explosions.draw()
 end
 
 function MoveEnemies()
