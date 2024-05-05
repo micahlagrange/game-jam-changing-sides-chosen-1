@@ -1,3 +1,7 @@
+local Luafinding = require("libs.luafinding")
+local Vector = require("libs.vector")
+
+math.randomseed(os.time())
 love.graphics.setDefaultFilter('nearest', 'nearest')
 
 local grid = {}
@@ -17,10 +21,8 @@ GROUND_CHARACTERS = { '.', ',', "'" }
 
 local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
--- local currentPlayerRegistry = otherRegistry
--- local currentPlayerGrid = otherGrid
 
-local difficultyLevel = 0
+local difficultyLevel = 1
 
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
@@ -35,10 +37,10 @@ end
 
 local function findAllInRegistry(theRegistry, char)
     local foundCoords = {}
-    for x, col in pairs(theRegistry) do
-        for y, regChar in pairs(col) do
+    for fx, col in pairs(theRegistry) do
+        for fy, regChar in pairs(col) do
             if regChar == char then
-                table.insert(foundCoords, { x = x, y = y })
+                table.insert(foundCoords, { x = fx, y = fy })
             end
         end
     end
@@ -55,18 +57,8 @@ local function getPlayerGridBounds()
     end
 end
 
-
-local function printGrid(theGrid, width, height)
-    -- Print the grid
-    for col = 1, width do
-        for row = 1, height do
-            io.write(theGrid[col][row] .. " ")
-        end
-        io.write("\n")
-    end
-end
-
 local function isCellNeighbor(playerPos, cellPos)
+    if playerPos.x == cellPos.x and playerPos.y == cellPos.y then return true end
     local dx = math.abs(playerPos.x - cellPos.x)
     local dy = math.abs(playerPos.y - cellPos.y)
     -- Check if the cell is a neighbor
@@ -82,7 +74,7 @@ local function getRandomElement(array)
         totalWeight = totalWeight + (#array + 1 - i)
     end
 
-    local randomNum = math.random() * totalWeight
+    local randomNum = love.math.random() * totalWeight
     local weightSum = 0
     for i = 1, #array do
         weightSum = weightSum + (#array + 1 - i)
@@ -116,30 +108,15 @@ function love.load()
     -- pre-fill the otherSideGrid from registry
     fillFromRegistry(otherGrid, otherWidth, otherHeight, otherRegistry)
     GenerateEnemies()
-    -- for _, v in ipairs(findAllInRegistry(registry, ENEMY_CHARACTER)) do
-    --     print('x', v.x, 'y', v.y)
-    -- end
 end
 
-local function occupied(x, y)
-    local entity = registry[x][y]
-    if entity == MAIN_CHARACTER or entity == ENEMY_CHARACTER then
-        return true
+function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
+    -- delete old character pos
+    if registeredTo[oldPos.x] and registeredTo[oldPos.x][oldPos.y] == character then
+        registeredTo[oldPos.x][oldPos.y] = getRandomElement(GROUND_CHARACTERS)
     end
-end
-
-local function moveMainCharacterInRegistry(registeredTo, width, height)
-    for col = 1, width do
-        for row = 1, height do
-            -- delete old main char pos
-            if registeredTo[col][row] == MAIN_CHARACTER and (POS.x ~= col or POS.y ~= row) then
-                registeredTo[col][row] = getRandomElement(GROUND_CHARACTERS)
-            end
-            if POS.x == col and POS.y == row then
-                registeredTo[col][row] = MAIN_CHARACTER
-            end
-        end
-    end
+    -- set new character pos
+    registeredTo[newPos.x][newPos.y] = character
 end
 
 function love.update()
@@ -157,13 +134,48 @@ function love.update()
     end
 end
 
+local function printCoords(coords)
+    if coords == nil or coords.x == nil or coords.y == nil then return end
+    print('x:', coords.x, 'y:', coords.y)
+end
+
+local function toVector(coords)
+    return Vector(coords.x, coords.y)
+end
+
+local function fromVector(vector)
+    return { x = vector.x, y = vector.y }
+end
+
+function MoveEnemies()
+    local enemies = findAllInRegistry(registry, ENEMY_CHARACTER)
+    for _, enemyPos in ipairs(enemies) do
+        local oldPos = {}
+        oldPos.x = enemyPos.x
+        oldPos.y = enemyPos.y
+
+        local ignore = true -- ignore cached paths
+
+        local path = Luafinding(toVector(enemyPos), toVector(POS), grid):GetPath()
+        if path and path[2] then
+            enemyPos = path[2]
+            print('enemy')
+            printCoords(oldPos)
+            printCoords(path[2])
+            MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemyPos)
+        end
+    end
+end
+
 function GenerateEnemies()
     local realDiff = difficultyLevel
-    if difficultyLevel > gridHeight * gridWidth then
-        realDiff = gridHeight * gridWidth
+    local minemies = 3
+    local maxemies = (gridHeight * gridWidth) - 10
+    if difficultyLevel > maxemies then
+        realDiff = maxemies
     end
-    print('real difficulty ceiling', realDiff)
-    for i = 1, 3 + realDiff do
+    print('generating ', minemies + realDiff, 'enemies')
+    for i = 1, minemies + realDiff do
         local placementCandidate = {}
         while true do
             placementCandidate.x = math.random(gridWidth)
@@ -183,35 +195,36 @@ function love.keyreleased(key)
     if key == "escape" then
         love.event.quit()
     end
+
+    local vector = {}
+    local oldPos = { x = POS.x, y = POS.y }
+
     if key == "up" then
-        if POS.y > 1 then
-            if IsNotObstacle({ x = POS.x, y = POS.y - 1 }) then
-                POS.y = POS.y - 1
-            end
-        end
+        vector.x = POS.x
+        vector.y = POS.y - 1
     end
     if key == "down" then
-        if POS.y < ylimit then
-            if IsNotObstacle({ x = POS.x, y = POS.y + 1 }) then
-                POS.y = POS.y + 1
-            end
-        end
+        vector.x = POS.x
+        vector.y = POS.y + 1
     end
     if key == "left" then
-        if POS.x > 1 then
-            if IsNotObstacle({ x = POS.x - 1, y = POS.y }) then
-                POS.x = POS.x - 1
-            end
-        end
+        vector.x = POS.x - 1
+        vector.y = POS.y
     end
     if key == "right" then
-        if POS.x < xlimit then
-            if IsNotObstacle({ x = POS.x + 1, y = POS.y }) then
-                POS.x = POS.x + 1
-            end
+        vector.x = POS.x + 1
+        vector.y = POS.y
+    end
+
+    if vector.x and vector.y then
+        if IsNotObstacle(vector, xlimit, ylimit) then
+            POS.x = vector.x
+            POS.y = vector.y
+            MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, oldPos, POS)
         end
     end
-    moveMainCharacterInRegistry(currentPlayerRegistry, xlimit, ylimit)
+
+    MoveEnemies()
 end
 
 local function centerOfCell(theGrid, col, row)
@@ -220,11 +233,9 @@ local function centerOfCell(theGrid, col, row)
     local y = (row + 0.25) * CELL_SIZE
     -- Get the width and height of the character
     local textWidth = love.graphics.getFont():getWidth(theGrid[col][row])
-    -- local textHeight = love.graphics.getFont():getHeight()
-    -- if FIXED_WIDTH_FONT then return x, y end
     -- Adjust the position of the character to center it in the cell
     local textX = x - (textWidth / 2)
-    local textY = y -- - (textHeight / 2)
+    local textY = y
     return textX, textY
 end
 
@@ -252,7 +263,14 @@ function love.draw()
     drawGrid(otherGrid, otherWidth, otherHeight, { .1, .1, .3 }, { 0, 1, 0 }, otherGridStart)
 end
 
-function IsNotObstacle(newPosition)
+function IsNotObstacle(newPosition, xlimit, ylimit)
+    if newPosition.x > xlimit
+        or newPosition.x < 1
+        or newPosition.y > ylimit
+        or newPosition.y < 1
+    then
+        return false
+    end
     if registry[newPosition.x][newPosition.y] == ENEMY_CHARACTER then
         return false
     end
