@@ -1,0 +1,8 @@
+{
+    "Lua.diagnostics.globals": [
+        "love",
+        "player"
+    ],
+    "Lua.runtime.version": "Lua 5.1",
+    "editor.formatOnSave": true
+}
