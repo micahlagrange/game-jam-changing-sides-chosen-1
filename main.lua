@@ -1,31 +1,40 @@
 local Luafinding = require("libs.luafinding")
 local Vector = require("libs.vector")
-local Explosions = require("src.fight")
+local Explosions = require("src.explosion")
+local Shake = require('src.shake')
 
 math.randomseed(os.time())
 love.graphics.setDefaultFilter('nearest', 'nearest')
-
-local grid = {}
-local gridWidth = 7
-local gridHeight = 5
-local registry = {}
-
-local otherGrid = {}
-local otherWidth = 5
-local otherHeight = 5
-local otherRegistry = {}
 
 MAIN_CHARACTER = '@'
 ENEMY_CHARACTER = '0'
 CHOSEN_1_CHARACTER = '1'
 GROUND_CHARACTERS = { '.', ',', "'" }
+MAX_HP = 3
 
+local grid = {}
+local gridWidth = 7
+local gridHeight = 5
+local registry = {}
+local otherGrid = {}
+local otherWidth = 5
+local otherHeight = 5
+local otherRegistry = {}
 local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
-
+local currentPlayerColor = { 0, 1, 0 }
 local difficultyLevel = 1
+local playerHp = 0
+local gameResettable = false
+
+HURT_DELAY = .3
+local hurtTimer = 0
 
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
+
+local function equalCoords(coords, otherCoords)
+    return coords.x == otherCoords.x and coords.y == otherCoords.y
+end
 
 local function fillFromRegistry(theGrid, width, height, theRegistry)
     for col = 1, width do
@@ -126,15 +135,25 @@ local function drawGrid(theGrid, width, height, bgColor, textColor, start)
             -- background
             love.graphics.setColor(bgColor)
             love.graphics.rectangle("fill", (start + col) * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-            -- character
             love.graphics.setColor(textColor)
             local textX, textY = centerOfCell(theGrid, col, row)
             love.graphics.print(theGrid[col][row], textX + (start * CELL_SIZE), textY)
+            -- color the character
+            DrawMainCharacter()
+            -- color the enemies
+            DrawEnemies()
         end
     end
 end
 
 function love.keyreleased(key)
+    if gameResettable then
+        if key == "spacebar" then
+            ResetGame()
+        end
+        return
+    end
+
     local xlimit, ylimit = getPlayerGridBounds()
     if key == "escape" then
         love.event.quit()
@@ -168,6 +187,7 @@ function love.keyreleased(key)
 end
 
 function love.load()
+    playerHp = MAX_HP
     love.graphics.setFont(love.graphics.newFont('fonts/white-rabbit.TTF', FONT_SIZE * SCALE))
     initRegistry(registry, gridWidth, gridHeight)
     initRegistry(otherRegistry, otherWidth, otherHeight)
@@ -196,16 +216,23 @@ function love.update(dt)
         end
     end
     Explosions.update(dt)
+    TickTimers(dt)
+    Shake.update(dt)
 end
 
 -- Draw the grid
 function love.draw()
+    Shake.draw()
     -- RENDER THE MAIN GRID
     drawGrid(grid, gridWidth, gridHeight, { .1, .1, .1 }, { 0, 1, 0 })
     -- RENDER THE OTHER SIDE
     local otherGridStart = (gridWidth + 1)
     drawGrid(otherGrid, otherWidth, otherHeight, { .1, .1, .3 }, { 0, 1, 0 }, otherGridStart)
     Explosions.draw()
+    love.graphics.print('HP: ' .. playerHp, 0, 10)
+    if gameResettable then
+        DrawMenu("Press [SPACEBAR] to reset game!")
+    end
 end
 
 function MoveEnemies()
@@ -216,9 +243,33 @@ function MoveEnemies()
         oldPos.y = enemyPos.y
         local path = Luafinding(toVector(enemyPos), toVector(POS), grid):GetPath()
         if path and path[2] then
-            enemyPos = path[2]
-            MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemyPos)
+            local stepTo = path[2]
+            if equalCoords(stepTo, POS) then
+                HurtMainCharacter()
+            else
+                enemyPos = stepTo
+                MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemyPos)
+            end
         end
+    end
+end
+
+function TickTimers(dt)
+    if hurtTimer >= 0 then
+        hurtTimer = hurtTimer - dt
+        if hurtTimer <= 0 then
+            currentPlayerColor = { 0, 1, 0 }
+        end
+    end
+end
+
+function HurtMainCharacter()
+    playerHp = playerHp - 1
+    currentPlayerColor = { 1, 0, 0 }
+    hurtTimer = HURT_DELAY
+    Shake.startShake(.3, 5)
+    if playerHp <= 0 then
+        GameOver()
     end
 end
 
@@ -255,4 +306,48 @@ function IsNotObstacle(newPosition, xlimit, ylimit)
         return false
     end
     return true
+end
+
+local function drawCharacter(character, theGrid, coords, color)
+    love.graphics.setColor(color)
+    local textX, textY = centerOfCell(theGrid, coords.x, coords.y)
+    local otherGridStart = (gridWidth + 1)
+    local start = 0
+    if theGrid == otherGrid then
+        start = otherGridStart
+    end
+    love.graphics.print(character, textX + (start * CELL_SIZE), textY)
+end
+
+function DrawMenu(text)
+    love.graphics.setColor({ .1, .2, .3 })
+    love.graphics.rectangle('fill',
+        2 * CELL_SIZE - (.5 * CELL_SIZE),
+        2 * CELL_SIZE - (.5 * CELL_SIZE),
+        WINDOW_WIDTH * SCALE - (3 * CELL_SIZE),
+        WINDOW_HEIGHT * SCALE - (5 * CELL_SIZE)
+    )
+
+    love.graphics.setColor({ .8, .2, .3 })
+    love.graphics.print(text,
+        3 * CELL_SIZE - (.5 * CELL_SIZE),
+        (WINDOW_HEIGHT / 3.54) * SCALE)
+end
+
+function GameOver()
+    gameResettable = true
+end
+
+function ResetGame()
+
+end
+
+function DrawMainCharacter()
+    drawCharacter(MAIN_CHARACTER, currentPlayerGrid, POS, currentPlayerColor)
+end
+
+function DrawEnemies()
+    for _, enemy in pairs(findAllInRegistry(registry, ENEMY_CHARACTER)) do
+        drawCharacter(ENEMY_CHARACTER, grid, enemy, { 0, 1, 0 })
+    end
 end
