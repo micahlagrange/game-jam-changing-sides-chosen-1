@@ -20,6 +20,8 @@ local currentPlayerGrid = grid
 -- local currentPlayerRegistry = otherRegistry
 -- local currentPlayerGrid = otherGrid
 
+local difficultyLevel = 0
+
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
 local function fillFromRegistry(theGrid, width, height, theRegistry)
@@ -29,6 +31,18 @@ local function fillFromRegistry(theGrid, width, height, theRegistry)
             theGrid[col][row] = theRegistry[col][row]
         end
     end
+end
+
+local function findAllInRegistry(theRegistry, char)
+    local foundCoords = {}
+    for x, col in pairs(theRegistry) do
+        for y, regChar in pairs(col) do
+            if regChar == char then
+                table.insert(foundCoords, { x = x, y = y })
+            end
+        end
+    end
+    return foundCoords
 end
 
 local function getPlayerGridBounds()
@@ -101,6 +115,10 @@ function love.load()
     fillFromRegistry(grid, gridWidth, gridHeight, registry)
     -- pre-fill the otherSideGrid from registry
     fillFromRegistry(otherGrid, otherWidth, otherHeight, otherRegistry)
+    GenerateEnemies()
+    -- for _, v in ipairs(findAllInRegistry(registry, ENEMY_CHARACTER)) do
+    --     print('x', v.x, 'y', v.y)
+    -- end
 end
 
 local function occupied(x, y)
@@ -139,8 +157,25 @@ function love.update()
     end
 end
 
-local function generateEnemies()
-
+function GenerateEnemies()
+    local realDiff = difficultyLevel
+    if difficultyLevel > gridHeight * gridWidth then
+        realDiff = gridHeight * gridWidth
+    end
+    print('real difficulty ceiling', realDiff)
+    for i = 1, 3 + realDiff do
+        local placementCandidate = {}
+        while true do
+            placementCandidate.x = math.random(gridWidth)
+            placementCandidate.y = math.random(gridHeight)
+            if not isCellNeighbor(POS, placementCandidate) then
+                registry[placementCandidate.x][placementCandidate.y] = ENEMY_CHARACTER
+                break
+            else
+                print('hit character at ', POS.x, POS.y)
+            end
+        end
+    end
 end
 
 function love.keyreleased(key)
@@ -150,22 +185,30 @@ function love.keyreleased(key)
     end
     if key == "up" then
         if POS.y > 1 then
-            POS.y = POS.y - 1
+            if IsNotObstacle({ x = POS.x, y = POS.y - 1 }) then
+                POS.y = POS.y - 1
+            end
         end
     end
     if key == "down" then
         if POS.y < ylimit then
-            POS.y = POS.y + 1
+            if IsNotObstacle({ x = POS.x, y = POS.y + 1 }) then
+                POS.y = POS.y + 1
+            end
         end
     end
     if key == "left" then
         if POS.x > 1 then
-            POS.x = POS.x - 1
+            if IsNotObstacle({ x = POS.x - 1, y = POS.y }) then
+                POS.x = POS.x - 1
+            end
         end
     end
     if key == "right" then
         if POS.x < xlimit then
-            POS.x = POS.x + 1
+            if IsNotObstacle({ x = POS.x + 1, y = POS.y }) then
+                POS.x = POS.x + 1
+            end
         end
     end
     moveMainCharacterInRegistry(currentPlayerRegistry, xlimit, ylimit)
@@ -207,4 +250,11 @@ function love.draw()
     -- RENDER THE OTHER SIDE
     local otherGridStart = (gridWidth + 1)
     drawGrid(otherGrid, otherWidth, otherHeight, { .1, .1, .3 }, { 0, 1, 0 }, otherGridStart)
+end
+
+function IsNotObstacle(newPosition)
+    if registry[newPosition.x][newPosition.y] == ENEMY_CHARACTER then
+        return false
+    end
+    return true
 end
