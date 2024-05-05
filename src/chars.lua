@@ -1,0 +1,6 @@
+CEDILLA = string.char(247)
+DEGREES = string.char(248)
+INTERPUNCT = string.char(250)
+ACCENT = string.char(239)
+BACKTICK = string.char(96)
+ORDINAL = string.char(167)

@@ -16,7 +16,6 @@ function Shake.draw()
     if t < shakeDuration then
         local dx = love.math.random(-shakeMagnitude, shakeMagnitude)
         local dy = love.math.random(-shakeMagnitude, shakeMagnitude)
-        print('translate', dx, dy)
         love.graphics.translate(dx, dy)
     end
 end
