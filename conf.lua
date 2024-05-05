@@ -3,6 +3,8 @@ SCALE = 5
 WINDOW_WIDTH = 128
 WINDOW_HEIGHT = 68
 CELL_SIZE = 8 * SCALE -- Define the size of each cell in the grid
+FIXED_WIDTH_FONT = true
+FONT_SIZE = 5
 
 function love.conf(t)
     t.title = "ChangingSidesChosen1"

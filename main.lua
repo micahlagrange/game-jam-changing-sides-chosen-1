@@ -13,7 +13,7 @@ local otherRegistry = {}
 MAIN_CHARACTER = '@'
 ENEMY_CHARACTER = '0'
 CHOSEN_1_CHARACTER = '1'
-GROUND_CHARACTER = '.'
+GROUND_CHARACTERS = { '.', ',', "'" }
 
 local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
@@ -62,21 +62,37 @@ local function isCellNeighbor(playerPos, cellPos)
     return false
 end
 
-local function initRegistry(theRegistry, width, height, fillWith)
+local function getRandomElement(array)
+    local totalWeight = 0
+    for i = 1, #array do
+        totalWeight = totalWeight + (#array + 1 - i)
+    end
+
+    local randomNum = math.random() * totalWeight
+    local weightSum = 0
+    for i = 1, #array do
+        weightSum = weightSum + (#array + 1 - i)
+        if weightSum >= randomNum then
+            return array[i]
+        end
+    end
+end
+
+local function initRegistry(theRegistry, width, height)
     -- fill the registry with ground cells
     for col = 1, width do
         theRegistry[col] = {}
         for row = 1, height do
-            theRegistry[col][row] = fillWith
+            theRegistry[col][row] = getRandomElement(GROUND_CHARACTERS)
         end
     end
 end
 
 
 function love.load()
-    love.graphics.setFont(love.graphics.newFont(8 * SCALE))
-    initRegistry(registry, gridWidth, gridHeight, GROUND_CHARACTER)
-    initRegistry(otherRegistry, otherWidth, otherHeight, GROUND_CHARACTER)
+    love.graphics.setFont(love.graphics.newFont('fonts/white-rabbit.TTF', FONT_SIZE * SCALE))
+    initRegistry(registry, gridWidth, gridHeight)
+    initRegistry(otherRegistry, otherWidth, otherHeight)
     -- put the main character in the middle of the grid
     POS = { x = math.ceil(gridWidth / 2), y = math.ceil(gridHeight / 2) }
     currentPlayerRegistry[POS.x][POS.y] = MAIN_CHARACTER
@@ -99,7 +115,7 @@ local function moveMainCharacterInRegistry(registeredTo, width, height)
         for row = 1, height do
             -- delete old main char pos
             if registeredTo[col][row] == MAIN_CHARACTER and (POS.x ~= col or POS.y ~= row) then
-                registeredTo[col][row] = GROUND_CHARACTER
+                registeredTo[col][row] = getRandomElement(GROUND_CHARACTERS)
             end
             if POS.x == col and POS.y == row then
                 registeredTo[col][row] = MAIN_CHARACTER
@@ -121,6 +137,10 @@ function love.update()
             otherGrid[column][row] = otherRegistry[column][row]
         end
     end
+end
+
+local function generateEnemies()
+
 end
 
 function love.keyreleased(key)
@@ -157,10 +177,11 @@ local function centerOfCell(theGrid, col, row)
     local y = (row + 0.25) * CELL_SIZE
     -- Get the width and height of the character
     local textWidth = love.graphics.getFont():getWidth(theGrid[col][row])
-    local textHeight = love.graphics.getFont():getHeight()
+    -- local textHeight = love.graphics.getFont():getHeight()
+    -- if FIXED_WIDTH_FONT then return x, y end
     -- Adjust the position of the character to center it in the cell
-    local textX = x - textWidth / 2
-    local textY = y - textHeight / 2
+    local textX = x - (textWidth / 2)
+    local textY = y -- - (textHeight / 2)
     return textX, textY
 end
 
