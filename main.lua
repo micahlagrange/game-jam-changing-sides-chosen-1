@@ -320,8 +320,15 @@ function love.update(dt)
 end
 
 function LoadHighScore()
-    local saveData, _ = love.filesystem.read(SAVE_SCORE_FILE)
-    if saveData then previousHighScore = saveData end
+    if love.system.getOS() ~= "Web" then
+        local saveData, _ = love.filesystem.read(SAVE_SCORE_FILE)
+        if saveData then previousHighScore = saveData end
+    else
+        if points > previousHighScore then
+            previousHighScore = points
+            highScoreDefeated = true
+        end
+    end
 end
 
 -- Draw the grid
@@ -481,17 +488,25 @@ function DrawMenu(text, textColor)
 end
 
 function GameOver()
-    local data, _ = love.filesystem.read(SAVE_SCORE_FILE)
-    if not data then
-        love.filesystem.write(SAVE_SCORE_FILE, points)
-        highScoreDefeated = true
-    else
-        if points > tonumber(data) then
+    local data = nil
+    if love.system.getOS() ~= "Web" then
+        data, _ = love.filesystem.read(SAVE_SCORE_FILE)
+        if not data then
             love.filesystem.write(SAVE_SCORE_FILE, points)
+            highScoreDefeated = true
+        else
+            if points > tonumber(data) then
+                love.filesystem.write(SAVE_SCORE_FILE, points)
+                highScoreDefeated = true
+            end
+        end
+        LoadHighScore() -- do this so the var has it cached for other loops
+    else
+        if points > previousHighScore then
+            previousHighScore = points
             highScoreDefeated = true
         end
     end
-    LoadHighScore() -- do this so the var has it cached for other loops
     gameResettable = true
 end
 
