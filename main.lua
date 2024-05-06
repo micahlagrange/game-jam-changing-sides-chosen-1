@@ -6,50 +6,88 @@ local debug = require('src.debug')
 
 math.randomseed(os.time())
 love.graphics.setDefaultFilter('nearest', 'nearest')
+love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
-MAIN_CHARACTER = '@'
-ENEMY_CHARACTER = '0'
 CHOSEN_1_CHARACTER = '1'
 GROUND_CHARACTERS = { '.', ',', "'" } --, '·' , CEDILLA, DEGREES, INTERPUNCT, ACCENT, BACKTICK, ORDINAL }
-MAX_HP = 3
-SAVE_SCORE_FILE = "highscore.c1d"
+ENEMY_CHARACTER = '0'
+MAIN_CHARACTER = '@'
 
-COLOR_GUI_TEXT = { 0, 1, 0.976 }
-COLOR_GROUND = { 0.165, .5, 0.29 }
+COLOR_BG_OTHERSIDE = { .1, .1, .3 }
+COLOR_BG_MAIN = { .1, .1, .1 }
+COLOR_CHOSEN_1 = { 0.91, 0.855, 0.584 }
 COLOR_ENEMY_CHARACTERS = { 1, 1, 1 }
 COLOR_ENEMY_EXPLOSION = { 0.929, 0.408, 0.102 }
-COLOR_MAIN_CHAR_EXPLOSION = { 0.624, 0.929, 0.102 }
-COLOR_CHOSEN_1 = { 0.91, 0.855, 0.584 }
-COLOR_BG_MAIN = { .1, .1, .1 }
-COLOR_BG_OTHERSIDE = { .1, .1, .3 }
+COLOR_GUI_TEXT = { 0, 1, 0.976 }
+COLOR_GROUND = { 0.165, .5, 0.29 }
 COLOR_MAIN_CHAR = { 0, 1, 0 }
+COLOR_MAIN_CHAR_EXPLOSION = { 0.624, 0.929, 0.102 }
 COLOR_MENU_TEXT = { .8, .2, .3 }
+COLOR_MENU_BOX_BORDER_EASY = { 0, 1, 0 }
+COLOR_MENU_BOX_BORDER_NORMAL = { .1, .3, .3 }
+COLOR_MENU_BOX_BORDER_HARD = { .5, .2, .2 }
+COLOR_MENU_BOX_BORDER_EXTREME = { 1, 0, 0 }
+COLOR_MENU_BOX = { .1, .2, .3 }
 
+MAX_HP = 3
+SAVE_SCORE_FILE = ".highscore.c1d"
+HURT_DELAY = .3
+WEB_OS = "Web"
+
+DIFFICULTY = {}
+DIFFICULTY.Easy = "boring"
+DIFFICULTY.NORMAL = "Normal"
+DIFFICULTY.HARD = "HARD"
+DIFFICULTY.EXTREME = "P!=NP"
+DIFFICULTY[4] = DIFFICULTY.Easy
+DIFFICULTY[3] = DIFFICULTY.NORMAL
+DIFFICULTY[2] = DIFFICULTY.HARD
+DIFFICULTY[1] = DIFFICULTY.EXTREME
+
+-- left side of screen
+local registry = {}
 local grid = {}
 local gridWidth = 7
 local gridHeight = 5
-local registry = {}
+-- right side of screen
+local otherRegistry = {}
 local otherGrid = {}
 local otherWidth = 5
 local otherHeight = 5
-local otherRegistry = {}
+-- game state
+local claimedChosen1 = false
+local chosen1Location = {}
 local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
 local currentPlayerColor = { COLOR_MAIN_CHAR }
-local difficultyLevel = 1
-local playerHp = 0
+local difficultySetting = 3
+local gameLevel = 1
 local gameResettable = false
-local claimedChosen1 = false
-local points = 0
-local chosen1Location = {}
-local playable = false
 local highScoreDefeated = false
+local hurtTimer = 0
+local playerHp = 0
+local playable = false
+local points = 0
 local previousHighScore = 0
 
-HURT_DELAY = .3
-local hurtTimer = 0
+local function getSaveFileName()
+    return 'difficulty' .. difficultySetting .. SAVE_SCORE_FILE
+end
 
-love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
+local function cycleDifficulty(direction)
+    if not direction then direction = 1 end
+    if direction < 1 then direction = -1 end
+
+    difficultySetting = difficultySetting + direction
+    if difficultySetting == 0 then
+        difficultySetting = 4
+    end
+    if difficultySetting == 5 then
+        difficultySetting = 1
+    end
+    playerHp = difficultySetting
+    LoadHighScore()
+end
 
 local function equalCoords(coords, otherCoords)
     return coords.x == otherCoords.x and coords.y == otherCoords.y
@@ -140,21 +178,6 @@ local function initRegistry(theRegistry, width, height)
     end
 end
 
-function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
-    assert(registeredTo ~= nil, "registeredTo may not be nil")
-    assert(character ~= nil, "character may not be nil")
-    assert(oldPos ~= nil, "oldPos may not be nil")
-    assert(newPos ~= nil, "newPos may not be nil")
-    assert(newPos.x ~= nil, "newPos.x may not be nil")
-    assert(newPos.y ~= nil, "newPos.y may not be nil")
-    -- delete old character pos
-    if registeredTo[oldPos.x] and registeredTo[oldPos.x][oldPos.y] == character then
-        registeredTo[oldPos.x][oldPos.y] = getRandomElement(GROUND_CHARACTERS)
-    end
-    -- set new character pos
-    registeredTo[newPos.x][newPos.y] = character
-end
-
 local function toVector(coords)
     return Vector(coords.x, coords.y)
 end
@@ -209,11 +232,29 @@ local function kill(array, theRegistry, enemyKill)
     end
 end
 
+
+function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
+    assert(registeredTo ~= nil, "registeredTo may not be nil")
+    assert(character ~= nil, "character may not be nil")
+    assert(oldPos ~= nil, "oldPos may not be nil")
+    assert(newPos ~= nil, "newPos may not be nil")
+    assert(newPos.x ~= nil, "newPos.x may not be nil")
+    assert(newPos.y ~= nil, "newPos.y may not be nil")
+    -- delete old character pos
+    if registeredTo[oldPos.x] and registeredTo[oldPos.x][oldPos.y] == character then
+        registeredTo[oldPos.x][oldPos.y] = getRandomElement(GROUND_CHARACTERS)
+    end
+    -- set new character pos
+    registeredTo[newPos.x][newPos.y] = character
+end
+
 function love.keyreleased(key)
-    if key == "escape" then
+    if key == "escape" and love.system.getOS() ~= WEB_OS then
         love.event.quit()
     end
     if not playable then
+        if key == "left" or key == "down" then cycleDifficulty() end
+        if key == "right" or key == "up" then cycleDifficulty(-1) end
         if key == "return" then playable = true end
         return
     end
@@ -230,7 +271,14 @@ function love.keyreleased(key)
             MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
             PlaceChosen1()
             GenerateEnemies()
-            playerHp = MAX_HP + math.floor(difficultyLevel / 3)
+            local divisor = 3              -- normal difficultySetting
+            if difficultySetting == 4 then -- easiest
+                divisor = 1
+            end
+            if difficultySetting == 1 then -- hardest difficultySetting
+                divisor = 4
+            end
+            playerHp = MAX_HP + math.floor(gameLevel / divisor)
         end
         return
     end
@@ -258,7 +306,7 @@ function love.keyreleased(key)
     local oldPos = { x = POS.x, y = POS.y }
     if vector.x and vector.y then
         if currentPlayerRegistry == otherRegistry and IsTheChosen1(vector) then
-            difficultyLevel = difficultyLevel + 1
+            gameLevel = gameLevel + 1
             claimedChosen1 = true
             points = points + 1
             return
@@ -320,15 +368,19 @@ function love.update(dt)
 end
 
 function LoadHighScore()
-    if love.system.getOS() ~= "Web" then
-        local saveData, _ = love.filesystem.read(SAVE_SCORE_FILE)
-        if saveData then previousHighScore = saveData end
+    if love.system.getOS() ~= WEB_OS then
+        local saveData, _ = love.filesystem.read(getSaveFileName())
+        if saveData then previousHighScore = saveData else previousHighScore = 0 end
     else
         if points > previousHighScore then
             previousHighScore = points
             highScoreDefeated = true
         end
     end
+end
+
+function GetDifficulty()
+    return DIFFICULTY[difficultySetting]
 end
 
 -- Draw the grid
@@ -343,7 +395,7 @@ function love.draw()
     love.graphics.setColor(.1, .1, .8)
     love.graphics.print(
         '    CHARGE:' .. playerHp ..
-        '      LEVEL:' .. difficultyLevel ..
+        '      LEVEL:' .. gameLevel ..
         '     POINTS:' .. points,
         0,
         10)
@@ -353,26 +405,35 @@ function love.draw()
         0,
         6 * CELL_SIZE + 10)
     if not playable then
-        local introText = "[ENTER]: Start a New Game\n\n" ..
-            "High Score: " .. previousHighScore
+        local introText = "[ENTER]: Start a New Game\n"
+            .. "[ARROWKEYS]: Difficulty ["
+            .. GetDifficulty()
+            .. "]\n\n"
+            .. " High Score: "
+            .. previousHighScore
 
         DrawMenu(introText)
     end
     if gameResettable then
-        local congrats = "No congrats are in order"
-            .. "\nTry to beat high score!"
-            .. "\nPrevious High Score:" .. previousHighScore
+        local congrats = " No congrats are in order"
+            .. "\n Try to beat high score!"
+            .. "\n Previous High Score:" .. previousHighScore
+        local escapeClause = ""
         if highScoreDefeated then
-            congrats = "NEW HIGH SCORE!! --> " .. points
+            congrats = "\n                NEW HIGH SCORE!!\n"
+                .. "Difficulty " .. GetDifficulty() .. "--> " .. points
         end
-        DrawMenu("[F1]: Reset Game\n"
-            .. "[ESCAPE]:   Exit\n"
+        if love.system.getOS() ~= WEB_OS then
+            escapeClause = "[ESCAPE]:   Exit\n"
+        end
+        DrawMenu("[F1]: reset\n"
+            .. escapeClause
             .. congrats,
             highScoreDefeated and COLOR_CHOSEN_1 or COLOR_MENU_TEXT)
     end
     if claimedChosen1 then
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
-            .. "[ENTER]: Progress To Level " .. difficultyLevel)
+            .. "[ENTER]: Progress To Level " .. gameLevel)
     end
 end
 
@@ -417,10 +478,10 @@ function HurtMainCharacter()
 end
 
 function GenerateEnemies()
-    local realDiff = difficultyLevel
+    local realDiff = gameLevel
     local minemies = 1
     local maxemies = (gridHeight * gridWidth) - 10
-    if difficultyLevel > maxemies then
+    if gameLevel > maxemies then
         realDiff = maxemies
     end
     print('generating ', minemies + realDiff, 'enemies')
@@ -466,15 +527,24 @@ local function drawCharacter(character, theGrid, coords, color)
 end
 
 function DrawMenu(text, textColor)
+    local borderColor = COLOR_MENU_BOX_BORDER_NORMAL
+    if GetDifficulty() == DIFFICULTY.Easy then
+        borderColor = COLOR_MENU_BOX_BORDER_EASY
+    elseif GetDifficulty() == DIFFICULTY.HARD then
+        borderColor = COLOR_MENU_BOX_BORDER_HARD
+    elseif GetDifficulty() == DIFFICULTY.EXTREME then
+        borderColor = COLOR_MENU_BOX_BORDER_EXTREME
+    end
+
     if not textColor then textColor = COLOR_MENU_TEXT end
-    love.graphics.setColor({ .1, .3, .3 })
+    love.graphics.setColor(borderColor)
     love.graphics.rectangle('fill',
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
         WINDOW_HEIGHT * SCALE - (4 * CELL_SIZE)
     )
-    love.graphics.setColor({ .1, .2, .3 })
+    love.graphics.setColor(COLOR_MENU_BOX)
     love.graphics.rectangle('fill',
         2 * CELL_SIZE - (.5 * CELL_SIZE),
         2 * CELL_SIZE - (.5 * CELL_SIZE),
@@ -483,20 +553,20 @@ function DrawMenu(text, textColor)
     )
     love.graphics.setColor(textColor)
     love.graphics.print(text,
-        3 * CELL_SIZE - (.5 * CELL_SIZE),
+        2.5 * CELL_SIZE - (.5 * CELL_SIZE),
         (WINDOW_HEIGHT / 3.54) * SCALE)
 end
 
 function GameOver()
     local data = nil
-    if love.system.getOS() ~= "Web" then
-        data, _ = love.filesystem.read(SAVE_SCORE_FILE)
+    if love.system.getOS() ~= WEB_OS then
+        data, _ = love.filesystem.read(getSaveFileName())
         if not data then
-            love.filesystem.write(SAVE_SCORE_FILE, points)
+            love.filesystem.write(getSaveFileName(), points)
             highScoreDefeated = true
         else
             if points > tonumber(data) then
-                love.filesystem.write(SAVE_SCORE_FILE, points)
+                love.filesystem.write(getSaveFileName(), points)
                 highScoreDefeated = true
             end
         end
@@ -516,11 +586,12 @@ function ResetGame()
     gameResettable = false
     playable = true
     claimedChosen1 = false
-    difficultyLevel = 1
+    gameLevel = 1
     kill(findAllInRegistry(registry, ENEMY_CHARACTER), registry, false)
     TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
     love.load()
     MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
+    playable = false
 end
 
 function DrawMainCharacter()
