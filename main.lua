@@ -29,7 +29,6 @@ COLOR_MENU_BOX_BORDER_HARD = { .5, .2, .2 }
 COLOR_MENU_BOX_BORDER_EXTREME = { 1, 0, 0 }
 COLOR_MENU_BOX = { .1, .2, .3 }
 
-MAX_HP = 3
 SAVE_SCORE_FILE = ".highscore.c1d"
 HURT_DELAY = .3
 WEB_OS = "Web"
@@ -65,10 +64,14 @@ local gameLevel = 1
 local gameResettable = false
 local highScoreDefeated = false
 local hurtTimer = 0
-local playerHp = 0
+local playerHp = difficultySetting
 local playable = false
 local points = 0
-local previousHighScore = 0
+local previousHighScore = {}
+previousHighScore[1] = 0
+previousHighScore[2] = 0
+previousHighScore[3] = 0
+previousHighScore[4] = 0
 
 local function getSaveFileName()
     return 'difficulty' .. difficultySetting .. SAVE_SCORE_FILE
@@ -278,7 +281,7 @@ function love.keyreleased(key)
             if difficultySetting == 1 then -- hardest difficultySetting
                 divisor = 4
             end
-            playerHp = MAX_HP + math.floor(gameLevel / divisor)
+            playerHp = difficultySetting + math.floor(gameLevel / divisor)
         end
         return
     end
@@ -324,7 +327,7 @@ function love.load()
     currentPlayerRegistry = registry
     currentPlayerGrid = grid
     LoadHighScore()
-    playerHp = MAX_HP
+    playerHp = difficultySetting
     love.graphics.setFont(love.graphics.newFont('fonts/white-rabbit.TTF', FONT_SIZE * SCALE))
     initRegistry(registry, gridWidth, gridHeight)
     initRegistry(otherRegistry, otherWidth, otherHeight)
@@ -370,10 +373,10 @@ end
 function LoadHighScore()
     if love.system.getOS() ~= WEB_OS then
         local saveData, _ = love.filesystem.read(getSaveFileName())
-        if saveData then previousHighScore = saveData else previousHighScore = 0 end
+        if saveData then previousHighScore[difficultySetting] = saveData else previousHighScore[difficultySetting] = 0 end
     else
-        if points > previousHighScore then
-            previousHighScore = points
+        if points > previousHighScore[difficultySetting] then
+            previousHighScore[difficultySetting] = points
             highScoreDefeated = true
         end
     end
@@ -410,14 +413,14 @@ function love.draw()
             .. GetDifficulty()
             .. "]\n\n"
             .. " High Score: "
-            .. previousHighScore
+            .. previousHighScore[difficultySetting]
 
         DrawMenu(introText)
     end
     if gameResettable then
         local congrats = " No congrats are in order"
             .. "\n Try to beat high score!"
-            .. "\n Previous High Score:" .. previousHighScore
+            .. "\n Previous High Score:" .. previousHighScore[difficultySetting]
         local escapeClause = ""
         if highScoreDefeated then
             congrats = "\n                NEW HIGH SCORE!!\n"
@@ -572,8 +575,8 @@ function GameOver()
         end
         LoadHighScore() -- do this so the var has it cached for other loops
     else
-        if points > previousHighScore then
-            previousHighScore = points
+        if points > previousHighScore[difficultySetting] then
+            previousHighScore[difficultySetting] = points
             highScoreDefeated = true
         end
     end
