@@ -12,6 +12,7 @@ ENEMY_CHARACTER = '0'
 CHOSEN_1_CHARACTER = '1'
 GROUND_CHARACTERS = { '.', ',', "'" } --, '·' , CEDILLA, DEGREES, INTERPUNCT, ACCENT, BACKTICK, ORDINAL }
 MAX_HP = 3
+SAVE_SCORE_FILE = "highscore.c1d"
 
 COLOR_GUI_TEXT = { 0, 1, 0.976 }
 COLOR_GROUND = { 0.165, .5, 0.29 }
@@ -22,6 +23,7 @@ COLOR_CHOSEN_1 = { 0.91, 0.855, 0.584 }
 COLOR_BG_MAIN = { .1, .1, .1 }
 COLOR_BG_OTHERSIDE = { .1, .1, .3 }
 COLOR_MAIN_CHAR = { 0, 1, 0 }
+COLOR_MENU_TEXT = { .8, .2, .3 }
 
 local grid = {}
 local gridWidth = 7
@@ -40,6 +42,9 @@ local gameResettable = false
 local claimedChosen1 = false
 local points = 0
 local chosen1Location = {}
+local playable = false
+local highScoreDefeated = false
+local previousHighScore = 0
 
 HURT_DELAY = .3
 local hurtTimer = 0
@@ -208,13 +213,17 @@ function love.keyreleased(key)
     if key == "escape" then
         love.event.quit()
     end
+    if not playable then
+        if key == "return" then playable = true end
+        return
+    end
     if gameResettable then
-        if key == "space" then
+        if key == "f1" then
             ResetGame()
         end
         return
     elseif claimedChosen1 then
-        if key == "space" then
+        if key == "return" then
             claimedChosen1 = false
             TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
             PlaceMainCharacter()
@@ -226,19 +235,19 @@ function love.keyreleased(key)
         return
     end
     local vector = {}
-    if key == "up" then
+    if key == "up" or key == "w" then
         vector.x = POS.x
         vector.y = POS.y - 1
-    elseif key == "down" then
+    elseif key == "down" or key == "s" then
         vector.x = POS.x
         vector.y = POS.y + 1
-    elseif key == "left" then
+    elseif key == "left" or key == "a" then
         vector.x = POS.x - 1
         vector.y = POS.y
-    elseif key == "right" then
+    elseif key == "right" or key == "d" then
         vector.x = POS.x + 1
         vector.y = POS.y
-    elseif key == "space" or key == "lctrl" then
+    elseif key == "space" or key == "lctrl" or key == "rctrl" then
         Explosions.new(POS.x, POS.y, 10, { 0, 1, .3 })
         local neighbors = findAllInNeighbors(ENEMY_CHARACTER)
         if #neighbors >= 1 then
@@ -264,6 +273,9 @@ function love.keyreleased(key)
 end
 
 function love.load()
+    currentPlayerRegistry = registry
+    currentPlayerGrid = grid
+    LoadHighScore()
     playerHp = MAX_HP
     love.graphics.setFont(love.graphics.newFont('fonts/white-rabbit.TTF', FONT_SIZE * SCALE))
     initRegistry(registry, gridWidth, gridHeight)
@@ -307,6 +319,11 @@ function love.update(dt)
     TeleportMaybe()
 end
 
+function LoadHighScore()
+    local saveData, _ = love.filesystem.read(SAVE_SCORE_FILE)
+    if saveData then previousHighScore = saveData end
+end
+
 -- Draw the grid
 function love.draw()
     Shake.draw()
@@ -328,11 +345,27 @@ function love.draw()
         '  - Objective: Find the chosen 1',
         0,
         6 * CELL_SIZE + 10)
+    if not playable then
+        local introText = "[ENTER]: Start a New Game\n\n" ..
+            "High Score: " .. previousHighScore
+
+        DrawMenu(introText)
+    end
     if gameResettable then
-        DrawMenu("Press [SPACEBAR] to reset game!\n[ESCAPE]: Exit")
+        local congrats = "No congrats are in order"
+            .. "\nTry to beat high score!"
+            .. "\nPrevious High Score:" .. previousHighScore
+        if highScoreDefeated then
+            congrats = "NEW HIGH SCORE!! --> " .. points
+        end
+        DrawMenu("[F1]: Reset Game\n"
+            .. "[ESCAPE]:   Exit\n"
+            .. congrats,
+            highScoreDefeated and COLOR_CHOSEN_1 or COLOR_MENU_TEXT)
     end
     if claimedChosen1 then
-        DrawMenu("CHOSEN 1 GET!\nPress [SPACEBAR] to\nprogress to level " .. difficultyLevel .. "!")
+        DrawMenu("CHOSEN 1 FOUND!!\n\n"
+            .. "[ENTER]: Progress To Level " .. difficultyLevel)
     end
 end
 
@@ -425,7 +458,15 @@ local function drawCharacter(character, theGrid, coords, color)
     love.graphics.print(character, textX + (start * CELL_SIZE), textY)
 end
 
-function DrawMenu(text)
+function DrawMenu(text, textColor)
+    if not textColor then textColor = COLOR_MENU_TEXT end
+    love.graphics.setColor({ .1, .3, .3 })
+    love.graphics.rectangle('fill',
+        1.5 * CELL_SIZE - (.5 * CELL_SIZE),
+        1.5 * CELL_SIZE - (.5 * CELL_SIZE),
+        WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
+        WINDOW_HEIGHT * SCALE - (4 * CELL_SIZE)
+    )
     love.graphics.setColor({ .1, .2, .3 })
     love.graphics.rectangle('fill',
         2 * CELL_SIZE - (.5 * CELL_SIZE),
@@ -433,19 +474,38 @@ function DrawMenu(text)
         WINDOW_WIDTH * SCALE - (3 * CELL_SIZE),
         WINDOW_HEIGHT * SCALE - (5 * CELL_SIZE)
     )
-
-    love.graphics.setColor({ .8, .2, .3 })
+    love.graphics.setColor(textColor)
     love.graphics.print(text,
         3 * CELL_SIZE - (.5 * CELL_SIZE),
         (WINDOW_HEIGHT / 3.54) * SCALE)
 end
 
 function GameOver()
+    local data, _ = love.filesystem.read(SAVE_SCORE_FILE)
+    if not data then
+        love.filesystem.write(SAVE_SCORE_FILE, points)
+        highScoreDefeated = true
+    else
+        if points > tonumber(data) then
+            love.filesystem.write(SAVE_SCORE_FILE, points)
+            highScoreDefeated = true
+        end
+    end
+    LoadHighScore() -- do this so the var has it cached for other loops
     gameResettable = true
 end
 
 function ResetGame()
-    --TODO: this
+    points = 0
+    highScoreDefeated = false
+    gameResettable = false
+    playable = true
+    claimedChosen1 = false
+    difficultyLevel = 1
+    kill(findAllInRegistry(registry, ENEMY_CHARACTER), registry, false)
+    TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
+    love.load()
+    MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
 end
 
 function DrawMainCharacter()
