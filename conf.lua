@@ -1,3 +1,4 @@
+DEFAULT_FONT = 'fonts/white-rabbit.TTF'
 DEBUG = true
 SCALE = 5
 WINDOW_WIDTH = 128

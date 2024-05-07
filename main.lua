@@ -3,13 +3,14 @@ local Vector = require("libs.vector")
 local Explosions = require("src.explosion")
 local Shake = require('src.shake')
 local debug = require('src.debug')
+require('src.chars')
 
 math.randomseed(os.time())
 love.graphics.setDefaultFilter('nearest', 'nearest')
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
 CHOSEN_1_CHARACTER = '1'
-GROUND_CHARACTERS = { '.', ',', "'" } --, '·' , CEDILLA, DEGREES, INTERPUNCT, ACCENT, BACKTICK, ORDINAL }
+GROUND_CHARACTERS = { '.', ',', "'", } --'·' } --, CHARS.CEDILLA } --, CHARS.DEGREES, CHARS.INTERPUNCT, CHARS.ACCENT, CHARS.BACKTICK, CHARS.ORDINAL }
 ENEMY_CHARACTER = '0'
 MAIN_CHARACTER = '@'
 
@@ -22,7 +23,7 @@ COLOR_GUI_TEXT = { 0, 1, 0.976 }
 COLOR_GROUND = { 0.165, .5, 0.29 }
 COLOR_MAIN_CHAR = { 0, 1, 0 }
 COLOR_MAIN_CHAR_EXPLOSION = { 0.624, 0.929, 0.102 }
-COLOR_MENU_TEXT = { .8, .2, .3 }
+COLOR_MENU_TEXT = { .5, .7, .4 }
 COLOR_MENU_BOX_BORDER_EASY = { 0, 1, 0 }
 COLOR_MENU_BOX_BORDER_NORMAL = { .1, .3, .3 }
 COLOR_MENU_BOX_BORDER_HARD = { .5, .2, .2 }
@@ -60,6 +61,8 @@ local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
 local currentPlayerColor = { COLOR_MAIN_CHAR }
 local difficultySetting = 3
+local fontCache = {}
+local fontCurrent = 1
 local gameLevel = 1
 local gameResettable = false
 local highScoreDefeated = false
@@ -193,7 +196,7 @@ local function centerOfCell(theGrid, col, row)
     local x = (col + 0.5) * CELL_SIZE
     local y = (row + 0.25) * CELL_SIZE
     -- Get the width and height of the character
-    local textWidth = love.graphics.getFont():getWidth(theGrid[1][1])
+    local textWidth = love.graphics.getFont():getWidth(".")
     -- Adjust the position of the character to center it in the cell
     local textX = x - (textWidth / 2)
     local textY = y
@@ -252,6 +255,7 @@ function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
 end
 
 function love.keyreleased(key)
+    if key == "f" then CycleFont() end
     if key == "escape" and love.system.getOS() ~= WEB_OS then
         love.event.quit()
     end
@@ -299,10 +303,12 @@ function love.keyreleased(key)
         vector.x = POS.x + 1
         vector.y = POS.y
     elseif key == "space" or key == "lctrl" or key == "rctrl" then
-        Explosions.new(POS.x, POS.y, 10, { 0, 1, .3 })
-        local neighbors = findAllInNeighbors(ENEMY_CHARACTER)
-        if #neighbors >= 1 then
-            kill(neighbors, registry, true)
+        if currentPlayerRegistry == registry then
+            Explosions.new(POS.x, POS.y, 10, { 0, 1, .3 })
+            local neighbors = findAllInNeighbors(ENEMY_CHARACTER)
+            if #neighbors >= 1 then
+                kill(neighbors, registry, true)
+            end
         end
     end
     local xlimit, ylimit = getPlayerGridBounds()
@@ -324,11 +330,12 @@ function love.keyreleased(key)
 end
 
 function love.load()
+    CacheFonts()
     currentPlayerRegistry = registry
     currentPlayerGrid = grid
     LoadHighScore()
     playerHp = difficultySetting
-    love.graphics.setFont(love.graphics.newFont('fonts/white-rabbit.TTF', FONT_SIZE * SCALE))
+    love.graphics.setFont(fontCache[fontCurrent])
     initRegistry(registry, gridWidth, gridHeight)
     initRegistry(otherRegistry, otherWidth, otherHeight)
     -- put the main character in the middle of the grid
@@ -402,16 +409,17 @@ function love.draw()
         '     POINTS:' .. points,
         0,
         10)
-    love.graphics.print('[SPACEBAR/LCTRL]: shoot adjacent cells\n' ..
-        '[ARROWKEYS]: move cardinally\n' ..
-        '  - Objective: Find the chosen 1',
-        0,
-        6 * CELL_SIZE + 10)
+    if playable and not gameResettable and not claimedChosen1 then
+        love.graphics.print('[SPACE/CTRL]: attack adjacent\n' ..
+            '[ARROWKEYS]: move cardinally\n' ..
+            ' Objective: Find the chosen 1',
+            0,
+            6 * CELL_SIZE + 10)
+    end
     if not playable then
         local introText = "[ENTER]: Start a New Game\n"
-            .. "[ARROWKEYS]: Difficulty ["
-            .. GetDifficulty()
-            .. "]\n\n"
+            .. "[ARROWKEYS]: Difficulty\n"
+            .. "             { " .. GetDifficulty() .. " }\n\n"
             .. " High Score: "
             .. previousHighScore[difficultySetting]
 
@@ -436,7 +444,7 @@ function love.draw()
     end
     if claimedChosen1 then
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
-            .. "[ENTER]: Progress To Level " .. gameLevel)
+            .. "[ENTER]: Go To Level " .. gameLevel)
     end
 end
 
@@ -545,19 +553,24 @@ function DrawMenu(text, textColor)
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
-        WINDOW_HEIGHT * SCALE - (4 * CELL_SIZE)
+        WINDOW_HEIGHT * SCALE - (2 * CELL_SIZE)
     )
     love.graphics.setColor(COLOR_MENU_BOX)
     love.graphics.rectangle('fill',
         2 * CELL_SIZE - (.5 * CELL_SIZE),
         2 * CELL_SIZE - (.5 * CELL_SIZE),
         WINDOW_WIDTH * SCALE - (3 * CELL_SIZE),
-        WINDOW_HEIGHT * SCALE - (5 * CELL_SIZE)
+        WINDOW_HEIGHT * SCALE - (3 * CELL_SIZE)
     )
     love.graphics.setColor(textColor)
     love.graphics.print(text,
         2.5 * CELL_SIZE - (.5 * CELL_SIZE),
         (WINDOW_HEIGHT / 3.54) * SCALE)
+    local fontHint = "[F]: cycle fonts"
+    love.graphics.setColor(.1, .5, .5)
+    love.graphics.print(fontHint,
+        2 * CELL_SIZE,
+        WINDOW_HEIGHT * SCALE - 2.5 * CELL_SIZE)
 end
 
 function GameOver()
@@ -636,4 +649,19 @@ function IsTheChosen1(vector)
         end
     end
     return false
+end
+
+function CycleFont()
+    fontCurrent = fontCurrent + 1
+    if fontCurrent > #fontCache then fontCurrent = 1 end
+    love.graphics.setFont(fontCache[fontCurrent])
+end
+
+function CacheFonts()
+    local dir = "fonts/"
+    local files = love.filesystem.getDirectoryItems(dir)
+    for _, file in ipairs(files) do
+        print(file)
+        table.insert(fontCache, love.graphics.newFont(dir .. file, FONT_SIZE * SCALE))
+    end
 end
