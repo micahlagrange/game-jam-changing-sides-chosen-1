@@ -1,19 +1,19 @@
 local Luafinding = require("libs.luafinding")
 local Vector = require("libs.vector")
 local Explosions = require("src.explosion")
-local Shake = require('src.shake')
-local debug = require('src.debug')
-require('src.chars')
+local Shake = require("src.shake")
+local debug = require("src.debug")
+require("src.chars")
 
 math.randomseed(os.time())
-love.graphics.setDefaultFilter('nearest', 'nearest')
+love.graphics.setDefaultFilter("nearest", "nearest")
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
-CHOSEN_1_CHARACTER = '1'
-GROUND_CHARACTERS = { '.', ',', "'", } --'·' } --, CHARS.CEDILLA } --, CHARS.DEGREES, CHARS.INTERPUNCT, CHARS.ACCENT, CHARS.BACKTICK, CHARS.ORDINAL }
-ENEMY_CHARACTER = '0'
-MAIN_CHARACTER = '@'
-AMMO_CHARACTER = '*'
+CHOSEN_1_CHARACTER = "1"
+GROUND_CHARACTERS = { ".", ",", "'", } --'·' } --, CHARS.CEDILLA } --, CHARS.DEGREES, CHARS.INTERPUNCT, CHARS.ACCENT, CHARS.BACKTICK, CHARS.ORDINAL }
+ENEMY_CHARACTER = "0"
+MAIN_CHARACTER = "@"
+AMMO_CHARACTER = "*"
 
 COLOR_AMMO = { .6, .2, .7 }
 COLOR_BG_OTHERSIDE = { .1, .1, .3 }
@@ -62,7 +62,7 @@ local otherGrid = {}
 local otherWidth = 5
 local otherHeight = 5
 -- game state
-local ammo = { '*' }
+local ammo = { "*" }
 local claimedChosen1 = false
 local chosen1Location = {}
 local currentPlayerRegistry = registry
@@ -88,7 +88,7 @@ previousHighScore[3] = 0
 previousHighScore[4] = 0
 
 local function getSaveFileName()
-    return 'difficulty' .. difficultySetting .. SAVE_SCORE_FILE
+    return "difficulty" .. difficultySetting .. SAVE_SCORE_FILE
 end
 
 local function cycleDifficulty(direction)
@@ -290,7 +290,7 @@ function love.keyreleased(k)
     if not playable then
         if k == "left" or k == "down" then cycleDifficulty() end
         if k == "right" or k == "up" then cycleDifficulty(-1) end
-        if k == "return" and inputtable then playable = true end
+        if k == "return" or k == "kpenter" and inputtable then playable = true end
         return
     end
     if gameResettable then
@@ -299,7 +299,7 @@ function love.keyreleased(k)
         end
         return
     elseif claimedChosen1 then
-        if k == "return" and inputtable then
+        if k == "return" or k == "kpenter" and inputtable then
             claimedChosen1 = false
             TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
             PlaceMainCharacter()
@@ -320,33 +320,33 @@ function love.keyreleased(k)
     end
     local vector = {}
     if #ammo > 0 then
-        if k == "e" or k == "pgup" then
+        if k == "e" or k == "pageup" or k == "kp9" then
             vector.x = POS.x + 1
             vector.y = POS.y - 1
-        elseif k == "c" or k == "pgdn" then
+        elseif k == "c" or k == "pagedown" or k == "kp3" then
             vector.x = POS.x + 1
             vector.y = POS.y + 1
-        elseif k == "z" or k == "end" then
+        elseif k == "z" or k == "end" or k == "kp1" then
             vector.x = POS.x - 1
             vector.y = POS.y + 1
-        elseif k == "q" or k == "home" then
+        elseif k == "q" or k == "home" or k == "kp7" then
             vector.x = POS.x - 1
             vector.y = POS.y - 1
         end
     end
-    if k == "up" or k == "w" then
+    if k == "up" or k == "w" or k == "kp8" then
         vector.x = POS.x
         vector.y = POS.y - 1
-    elseif k == "down" or k == "s" then
+    elseif k == "down" or k == "s" or k == "kp2" then
         vector.x = POS.x
         vector.y = POS.y + 1
-    elseif k == "left" or k == "a" then
+    elseif k == "left" or k == "a" or k == "kp4" then
         vector.x = POS.x - 1
         vector.y = POS.y
-    elseif k == "right" or k == "d" then
+    elseif k == "right" or k == "d" or k == "kp6" then
         vector.x = POS.x + 1
         vector.y = POS.y
-    elseif k == "space" or k == "lctrl" or k == "rctrl" then
+    elseif k == "space" or k == "lctrl" or k == "rctrl" or k == "kp0" then
         if currentPlayerRegistry == registry then
             Explosions.new(POS.x + .15, POS.y, 10, COLOR_MAIN_CHAR_EXPLOSION)
             local neighbors = findAllInNeighbors(ENEMY_CHARACTER)
@@ -453,7 +453,7 @@ function LoadHighScore()
 end
 
 function GetAmmoBar()
-    local ammoBar = ''
+    local ammoBar = ""
     for _, am in ipairs(ammo) do
         ammoBar = ammoBar .. am
     end
@@ -490,9 +490,9 @@ end
 function love.draw()
     -- HUD
     love.graphics.setColor(COLOR_GUI_TEXT)
-    love.graphics.print('CHARGE:' .. playerHp
-        .. '   LEVEL:' .. gameLevel
-        .. '    POINTS:' .. points,
+    love.graphics.print("CHARGE:" .. playerHp
+        .. "   LEVEL:" .. gameLevel
+        .. "    POINTS:" .. points,
         10,
         10)
     love.graphics.setColor(COLOR_AMMO)
@@ -508,9 +508,9 @@ function love.draw()
         local moveHint = ""
         if #ammo > 0 then moveHint = "  /DIAGONALLY/" end
         love.graphics.setColor(COLOR_GUI_TEXT)
-        love.graphics.print('[SPACE/CTRL]: attack' .. moveHint .. '\n'
-            .. '[WASD]: move ' .. moveHint .. '\n'
-            .. ' Objective: Collect a chosen 1',
+        love.graphics.print("[SPACE/CTRL]: attack" .. moveHint .. "\n"
+            .. "[WASD]: move " .. moveHint .. "\n"
+            .. " Objective: Collect a chosen 1",
             0,
             6 * CELL_SIZE + 10)
     end
@@ -603,8 +603,16 @@ function HurtMainCharacter()
 end
 
 function GenerateAmmo()
+    local divisor = 2              -- normal mode
+    if difficultySetting == 4 then -- easy
+        divisor = 1
+    end
+    if difficultySetting == 1 then -- hard mode
+        divisor = 3
+    end
+
     local numAmmo = gameLevel
-    local maxAmmo = gameLevel / 3
+    local maxAmmo = gameLevel / divisor
     if numAmmo > maxAmmo then
         numAmmo = maxAmmo
     end
@@ -630,10 +638,10 @@ function GenerateEnemies()
         numEnemies = numEnemies / 2
     end
     if numEnemies > maxEnemies then
-        print('reached maximum number of enemies')
+        print("reached maximum number of enemies")
         numEnemies = maxEnemies
     end
-    print('generating ', minEnemies + numEnemies, 'enemies')
+    print("generating ", minEnemies + numEnemies, "enemies")
     for _ = 1, minEnemies + numEnemies do
         local placementCandidate = {}
         while true do
@@ -687,14 +695,14 @@ function DrawMenu(text, textColor, warningText)
 
     if textColor == nil then textColor = COLOR_MENU_TEXT end
     love.graphics.setColor(borderColor)
-    love.graphics.rectangle('fill',
+    love.graphics.rectangle("fill",
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
         WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
         WINDOW_HEIGHT * SCALE - (2 * CELL_SIZE)
     )
     love.graphics.setColor(COLOR_MENU_BOX)
-    love.graphics.rectangle('fill',
+    love.graphics.rectangle("fill",
         2 * CELL_SIZE - (.5 * CELL_SIZE),
         2 * CELL_SIZE - (.5 * CELL_SIZE),
         WINDOW_WIDTH * SCALE - (3 * CELL_SIZE),
