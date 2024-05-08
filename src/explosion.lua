@@ -4,13 +4,14 @@ local object = require('libs.classic')
 local objects = {}
 
 local explod_anim = object:extend()
-function explod_anim:new(ex, ey, maxSize, color)
+function explod_anim:new(ex, ey, maxSize, color, duration)
+    self.duration = duration
     self.circle = { size = 0 }
     self.position = { x = ex, y = ey }
     self.maxSize = maxSize * SCALE
     self.color = color
     self.alpha = .5
-    self.tween = tween.new(.3, self.circle, { size = self.maxSize }, tween.easing.outQuad)
+    self.tween = tween.new(self.duration, self.circle, { size = self.maxSize }, tween.easing.outQuad)
 end
 
 function explod_anim:update(dt)
@@ -27,9 +28,10 @@ local function cleanUp(dt)
 end
 
 local Explosions = {}
-function Explosions.new(x, y, maxSize, color)
+function Explosions.new(x, y, maxSize, color, duration)
+    if not duration then duration = .3 end
     if not maxSize then maxSize = 100 end
-    table.insert(objects, explod_anim(x, y, maxSize, color))
+    table.insert(objects, explod_anim(x, y, maxSize, color, duration))
 end
 
 -- In your update function, update the tween

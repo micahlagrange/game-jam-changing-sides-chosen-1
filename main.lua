@@ -13,7 +13,9 @@ CHOSEN_1_CHARACTER = '1'
 GROUND_CHARACTERS = { '.', ',', "'", } --'·' } --, CHARS.CEDILLA } --, CHARS.DEGREES, CHARS.INTERPUNCT, CHARS.ACCENT, CHARS.BACKTICK, CHARS.ORDINAL }
 ENEMY_CHARACTER = '0'
 MAIN_CHARACTER = '@'
+AMMO_CHARACTER = '*'
 
+COLOR_AMMO = { .6, .2, .7 }
 COLOR_BG_OTHERSIDE = { .1, .1, .3 }
 COLOR_BG_MAIN = { .1, .1, .1 }
 COLOR_CHOSEN_1 = { 0.91, 0.855, 0.584 }
@@ -60,6 +62,7 @@ local otherGrid = {}
 local otherWidth = 5
 local otherHeight = 5
 -- game state
+local ammo = { '*' }
 local claimedChosen1 = false
 local chosen1Location = {}
 local currentPlayerRegistry = registry
@@ -124,6 +127,17 @@ local function findAllInNeighbors(char)
         { x = POS.x + 1, y = POS.y },
         { x = POS.x - 1, y = POS.y },
     }
+    local diagonalCells = {
+        { x = POS.x + 1, y = POS.y + 1 },
+        { x = POS.x + 1, y = POS.y - 1 },
+        { x = POS.x - 1, y = POS.y - 1 },
+        { x = POS.x - 1, y = POS.y + 1 },
+    }
+    if #ammo > 0 then
+        for i = 1, #diagonalCells, 1 do
+            table.insert(neighbooringCells, diagonalCells[i])
+        end
+    end
     for _, coord in ipairs(neighbooringCells) do
         if currentPlayerRegistry[coord.x] and currentPlayerRegistry[coord.x][coord.y] then
             if currentPlayerRegistry[coord.x][coord.y] == char then
@@ -227,11 +241,17 @@ local function drawGrid(theGrid, width, height, bgColor, textColor, start)
             DrawEnemies()
             -- color the chosen 1
             DrawChosen1()
+            -- color the ammo
+            DrawAmmo()
         end
     end
 end
 
 local function kill(array, theRegistry, enemyKill)
+    local explosionColor = COLOR_ENEMY_EXPLOSION
+    if #ammo > 0 then
+        explosionColor = COLOR_AMMO
+    end
     if theRegistry == nil then theRegistry = registry end
     if array == nil then return end
     -- aka kill
@@ -241,7 +261,7 @@ local function kill(array, theRegistry, enemyKill)
         if enemyKill then
             points = points + 1
             Shake.startShake(.1, 1)
-            Explosions.new(enemy.x, enemy.y, 20, { 1, 0, 0 })
+            Explosions.new(enemy.x, enemy.y, 20, explosionColor, .5)
         end
     end
 end
@@ -262,29 +282,30 @@ function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
     registeredTo[newPos.x][newPos.y] = character
 end
 
-function love.keyreleased(key)
-    if key == "f" then CycleFont() end
-    if key == "escape" and love.system.getOS() ~= WEB_OS then
+function love.keyreleased(k)
+    if k == "f" then CycleFont() end
+    if k == "escape" and love.system.getOS() ~= WEB_OS then
         love.event.quit()
     end
     if not playable then
-        if key == "left" or key == "down" then cycleDifficulty() end
-        if key == "right" or key == "up" then cycleDifficulty(-1) end
-        if key == "return" and inputtable then playable = true end
+        if k == "left" or k == "down" then cycleDifficulty() end
+        if k == "right" or k == "up" then cycleDifficulty(-1) end
+        if k == "return" and inputtable then playable = true end
         return
     end
     if gameResettable then
-        if key == "f1" then
+        if k == "f1" then
             ResetGame()
         end
         return
     elseif claimedChosen1 then
-        if key == "return" and inputtable then
+        if k == "return" and inputtable then
             claimedChosen1 = false
             TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
             PlaceMainCharacter()
             MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
             PlaceChosen1()
+            GenerateAmmo()
             GenerateEnemies()
             local divisor = 2              -- normal difficultySetting
             if difficultySetting == 4 then -- easiest
@@ -298,23 +319,41 @@ function love.keyreleased(key)
         return
     end
     local vector = {}
-    if key == "up" or key == "w" then
+    if #ammo > 0 then
+        if k == "e" or k == "pgup" then
+            vector.x = POS.x + 1
+            vector.y = POS.y - 1
+        elseif k == "c" or k == "pgdn" then
+            vector.x = POS.x + 1
+            vector.y = POS.y + 1
+        elseif k == "z" or k == "end" then
+            vector.x = POS.x - 1
+            vector.y = POS.y + 1
+        elseif k == "q" or k == "home" then
+            vector.x = POS.x - 1
+            vector.y = POS.y - 1
+        end
+    end
+    if k == "up" or k == "w" then
         vector.x = POS.x
         vector.y = POS.y - 1
-    elseif key == "down" or key == "s" then
+    elseif k == "down" or k == "s" then
         vector.x = POS.x
         vector.y = POS.y + 1
-    elseif key == "left" or key == "a" then
+    elseif k == "left" or k == "a" then
         vector.x = POS.x - 1
         vector.y = POS.y
-    elseif key == "right" or key == "d" then
+    elseif k == "right" or k == "d" then
         vector.x = POS.x + 1
         vector.y = POS.y
-    elseif key == "space" or key == "lctrl" or key == "rctrl" then
+    elseif k == "space" or k == "lctrl" or k == "rctrl" then
         if currentPlayerRegistry == registry then
-            Explosions.new(POS.x, POS.y, 10, { 0, 1, .3 })
+            Explosions.new(POS.x + .15, POS.y, 10, COLOR_MAIN_CHAR_EXPLOSION)
             local neighbors = findAllInNeighbors(ENEMY_CHARACTER)
             if #neighbors >= 1 then
+                if #ammo > 0 then
+                    UseAmmo()
+                end
                 kill(neighbors, registry, true)
             end
         end
@@ -322,19 +361,11 @@ function love.keyreleased(key)
     local xlimit, ylimit = getPlayerGridBounds()
     local oldPos = { x = POS.x, y = POS.y }
     if vector.x and vector.y then
+        if IsAmmo(vector) then
+            AddAmmo()
+        end
         if currentPlayerRegistry == otherRegistry and IsTheChosen1(vector) then
-            gameLevel = gameLevel + 1
-            if gameLevel % 5 == 4 then
-                inputTimer = INPUT_DELAY
-            end
-            if gameLevel % 5 == 0 then
-                inputTimer = INPUT_DELAY
-                diagonalable = true
-            else
-                diagonalable = false
-            end
-            claimedChosen1 = true
-            points = points + 1
+            LevelEnd()
             return
         end
         if IsNotObstacle(vector, xlimit, ylimit) then
@@ -344,6 +375,21 @@ function love.keyreleased(key)
             MoveEnemies()
         end
     end
+end
+
+function LevelEnd()
+    gameLevel = gameLevel + 1
+    if gameLevel % 5 == 4 then
+        inputTimer = INPUT_DELAY
+    end
+    if gameLevel % 5 == 0 then
+        inputTimer = INPUT_DELAY
+        diagonalable = true
+    else
+        diagonalable = false
+    end
+    claimedChosen1 = true
+    points = points + 1
 end
 
 function love.load()
@@ -406,12 +452,51 @@ function LoadHighScore()
     end
 end
 
+function GetAmmoBar()
+    local ammoBar = ''
+    for _, am in ipairs(ammo) do
+        ammoBar = ammoBar .. am
+    end
+    return ammoBar
+end
+
+function AddAmmo()
+    table.insert(ammo, AMMO_CHARACTER)
+end
+
+function UseAmmo()
+    if #ammo > 0 then
+        table.remove(ammo, 1)
+    end
+end
+
 function GetDifficulty()
     return DIFFICULTY[difficultySetting]
 end
 
+local function rightOfScreenPlacement(text)
+    local textWidth = fontCache[fontCurrent]:getWidth(text)
+    local start = love.graphics.getWidth() - textWidth
+    return start
+end
+
+local function bottomOfScreenPlacement(text)
+    local textHeight = fontCache[fontCurrent]:getHeight(text)
+    local start = love.graphics.getHeight() - textHeight
+    return start
+end
+
 -- Draw the grid
 function love.draw()
+    -- HUD
+    love.graphics.setColor(COLOR_GUI_TEXT)
+    love.graphics.print('CHARGE:' .. playerHp
+        .. '   LEVEL:' .. gameLevel
+        .. '    POINTS:' .. points,
+        10,
+        10)
+    love.graphics.setColor(COLOR_AMMO)
+    love.graphics.print(GetAmmoBar(), rightOfScreenPlacement(GetAmmoBar()) - 10, 10)
     Shake.draw()
     -- RENDER THE MAIN GRID
     drawGrid(grid, gridWidth, gridHeight, COLOR_BG_MAIN, COLOR_GROUND)
@@ -419,17 +504,13 @@ function love.draw()
     local otherGridStart = (gridWidth + 1)
     drawGrid(otherGrid, otherWidth, otherHeight, COLOR_BG_OTHERSIDE, COLOR_GROUND, otherGridStart)
     Explosions.draw()
-    love.graphics.setColor(.1, .1, .8)
-    love.graphics.print(
-        '    CHARGE:' .. playerHp ..
-        '      LEVEL:' .. gameLevel ..
-        '     POINTS:' .. points,
-        0,
-        10)
     if playable and not gameResettable and not claimedChosen1 then
-        love.graphics.print('[SPACE/CTRL]: attack\n' ..
-            '[WASD]: move cardinally\n' ..
-            ' Objective: Find the chosen 1',
+        local moveHint = ""
+        if #ammo > 0 then moveHint = "  /DIAGONALLY/" end
+        love.graphics.setColor(COLOR_GUI_TEXT)
+        love.graphics.print('[SPACE/CTRL]: attack' .. moveHint .. '\n'
+            .. '[WASD]: move ' .. moveHint .. '\n'
+            .. ' Objective: Collect a chosen 1',
             0,
             6 * CELL_SIZE + 10)
     end
@@ -464,8 +545,8 @@ function love.draw()
     if claimedChosen1 then
         local goNextLevelText = ""
         local warningText = nil
-        if gameLevel % 5 == 4 then warningText = "Elite swarms are\non their way" end
-        if diagonalable then warningText = "An upgraded drone swarm...\nTHEY ATTACK DIAGONALLY" end
+        if gameLevel % 5 == 4 then warningText = "Elite zeroes are\non their way" end
+        if diagonalable then warningText = "An upgraded zero swarm...\nTHEY ATTACK DIAGONALLY\n   pick up a *" end
         if inputtable then goNextLevelText = "[ENTER]: Go To Level " .. gameLevel end
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
             .. goNextLevelText,
@@ -487,7 +568,7 @@ function MoveEnemies()
             if equalCoords(stepTo, POS) then
                 HurtMainCharacter()
             else
-                if IsNotObstacle(stepTo, gridWidth, gridHeight) then
+                if IsNotObstacle(stepTo, gridWidth, gridHeight) and not IsAmmo(stepTo) then
                     enemy = stepTo
                     MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemy)
                 end
@@ -518,6 +599,25 @@ function HurtMainCharacter()
     Shake.startShake(.3, 5)
     if playerHp <= 0 then
         GameOver()
+    end
+end
+
+function GenerateAmmo()
+    local numAmmo = gameLevel
+    local maxAmmo = gameLevel / 3
+    if numAmmo > maxAmmo then
+        numAmmo = maxAmmo
+    end
+    for _ = 1, numAmmo do
+        local placementCandidate = {}
+        while true do
+            placementCandidate.x = math.random(gridWidth)
+            placementCandidate.y = math.random(gridHeight)
+            if not isCellNeighbor(POS, placementCandidate) then
+                registry[placementCandidate.x][placementCandidate.y] = AMMO_CHARACTER
+                break
+            end
+        end
     end
 end
 
@@ -672,6 +772,12 @@ function DrawEnemies()
     end
 end
 
+function DrawAmmo()
+    for _, ammos in pairs(findAllInRegistry(registry, AMMO_CHARACTER)) do
+        drawCharacter(AMMO_CHARACTER, grid, ammos, COLOR_AMMO)
+    end
+end
+
 function TeleportTo(theRegistry, theGrid, oldRegistry, coords)
     if currentPlayerRegistry ~= theRegistry then
         currentPlayerRegistry = theRegistry
@@ -690,11 +796,16 @@ function TeleportMaybe()
 end
 
 function IsTheChosen1(vector)
-    if otherRegistry[vector.x] and otherRegistry[vector.x][vector.y] then
-        local discoveredThing = otherRegistry[vector.x][vector.y]
-        if discoveredThing == CHOSEN_1_CHARACTER then
-            return true
-        end
+    return GetAtVector(otherRegistry, vector) == CHOSEN_1_CHARACTER
+end
+
+function IsAmmo(vector)
+    return GetAtVector(registry, vector) == AMMO_CHARACTER
+end
+
+function GetAtVector(theRegistry, vector)
+    if theRegistry[vector.x] and theRegistry[vector.x][vector.y] then
+        return theRegistry[vector.x][vector.y]
     end
     return false
 end
