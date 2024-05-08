@@ -18,6 +18,7 @@ COLOR_BG_OTHERSIDE = { .1, .1, .3 }
 COLOR_BG_MAIN = { .1, .1, .1 }
 COLOR_CHOSEN_1 = { 0.91, 0.855, 0.584 }
 COLOR_ENEMY_CHARACTERS = { 1, 1, 1 }
+COLOR_BOSS_CHARACTERS = { 1, .1, .1 }
 COLOR_ENEMY_EXPLOSION = { 0.929, 0.408, 0.102 }
 COLOR_GUI_TEXT = { 0, 1, 0.976 }
 COLOR_GROUND = { 0.165, .5, 0.29 }
@@ -29,9 +30,12 @@ COLOR_MENU_BOX_BORDER_NORMAL = { .1, .3, .3 }
 COLOR_MENU_BOX_BORDER_HARD = { .5, .2, .2 }
 COLOR_MENU_BOX_BORDER_EXTREME = { 1, 0, 0 }
 COLOR_MENU_BOX = { .1, .2, .3 }
+COLOR_SUBTLE_HINT = { .1, .5, .5 }
+COLOR_WARNING_TEXT = { 1, .2, .4 }
 
 SAVE_SCORE_FILE = ".highscore.c1d"
 HURT_DELAY = .3
+INPUT_DELAY = 1
 WEB_OS = "Web"
 
 DIFFICULTY = {}
@@ -46,6 +50,7 @@ DIFFICULTY[1] = DIFFICULTY.EXTREME
 
 -- left side of screen
 local registry = {}
+local diagonalable = false
 local grid = {}
 local gridWidth = 7
 local gridHeight = 5
@@ -67,10 +72,13 @@ local gameLevel = 1
 local gameResettable = false
 local highScoreDefeated = false
 local hurtTimer = 0
+local inputtable = true
+local inputTimer = 0
 local playerHp = difficultySetting
 local playable = false
 local points = 0
 local previousHighScore = {}
+
 previousHighScore[1] = 0
 previousHighScore[2] = 0
 previousHighScore[3] = 0
@@ -262,7 +270,7 @@ function love.keyreleased(key)
     if not playable then
         if key == "left" or key == "down" then cycleDifficulty() end
         if key == "right" or key == "up" then cycleDifficulty(-1) end
-        if key == "return" then playable = true end
+        if key == "return" and inputtable then playable = true end
         return
     end
     if gameResettable then
@@ -271,16 +279,16 @@ function love.keyreleased(key)
         end
         return
     elseif claimedChosen1 then
-        if key == "return" then
+        if key == "return" and inputtable then
             claimedChosen1 = false
             TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
             PlaceMainCharacter()
             MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
             PlaceChosen1()
             GenerateEnemies()
-            local divisor = 3              -- normal difficultySetting
+            local divisor = 2              -- normal difficultySetting
             if difficultySetting == 4 then -- easiest
-                divisor = 1
+                divisor = 2
             end
             if difficultySetting == 1 then -- hardest difficultySetting
                 divisor = 4
@@ -316,6 +324,15 @@ function love.keyreleased(key)
     if vector.x and vector.y then
         if currentPlayerRegistry == otherRegistry and IsTheChosen1(vector) then
             gameLevel = gameLevel + 1
+            if gameLevel % 5 == 4 then
+                inputTimer = INPUT_DELAY
+            end
+            if gameLevel % 5 == 0 then
+                inputTimer = INPUT_DELAY
+                diagonalable = true
+            else
+                diagonalable = false
+            end
             claimedChosen1 = true
             points = points + 1
             return
@@ -410,8 +427,8 @@ function love.draw()
         0,
         10)
     if playable and not gameResettable and not claimedChosen1 then
-        love.graphics.print('[SPACE/CTRL]: attack adjacent\n' ..
-            '[ARROWKEYS]: move cardinally\n' ..
+        love.graphics.print('[SPACE/CTRL]: attack\n' ..
+            '[WASD]: move cardinally\n' ..
             ' Objective: Find the chosen 1',
             0,
             6 * CELL_SIZE + 10)
@@ -425,6 +442,7 @@ function love.draw()
 
         DrawMenu(introText)
     end
+
     if gameResettable then
         local congrats = " No congrats are in order"
             .. "\n Try to beat high score!"
@@ -442,27 +460,36 @@ function love.draw()
             .. congrats,
             highScoreDefeated and COLOR_CHOSEN_1 or COLOR_MENU_TEXT)
     end
+
     if claimedChosen1 then
+        local goNextLevelText = ""
+        local warningText = nil
+        if gameLevel % 5 == 4 then warningText = "Elite swarms are\non their way" end
+        if diagonalable then warningText = "An upgraded drone swarm...\nTHEY ATTACK DIAGONALLY" end
+        if inputtable then goNextLevelText = "[ENTER]: Go To Level " .. gameLevel end
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
-            .. "[ENTER]: Go To Level " .. gameLevel)
+            .. goNextLevelText,
+            nil,
+            warningText)
     end
 end
 
 function MoveEnemies()
     local enemies = findAllInRegistry(registry, ENEMY_CHARACTER)
-    for _, enemyPos in ipairs(enemies) do
+    for _, enemy in ipairs(enemies) do
         local oldPos = {}
-        oldPos.x = enemyPos.x
-        oldPos.y = enemyPos.y
-        local path = Luafinding(toVector(enemyPos), toVector(POS), grid):GetPath()
+        oldPos.x = enemy.x
+        oldPos.y = enemy.y
+        -- a star A* aStar AsTaR (ION?)
+        local path = Luafinding(toVector(enemy), toVector(POS), grid, diagonalable):GetPath()
         if path and path[2] then
             local stepTo = path[2]
             if equalCoords(stepTo, POS) then
                 HurtMainCharacter()
             else
                 if IsNotObstacle(stepTo, gridWidth, gridHeight) then
-                    enemyPos = stepTo
-                    MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemyPos)
+                    enemy = stepTo
+                    MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemy)
                 end
             end
         end
@@ -475,6 +502,12 @@ function TickTimers(dt)
         if hurtTimer <= 0 then
             currentPlayerColor = COLOR_MAIN_CHAR
         end
+    end
+    if inputTimer >= 0 then
+        inputTimer = inputTimer - dt
+        inputtable = false
+    else
+        inputtable = true
     end
 end
 
@@ -489,14 +522,19 @@ function HurtMainCharacter()
 end
 
 function GenerateEnemies()
-    local realDiff = gameLevel
-    local minemies = 1
-    local maxemies = (gridHeight * gridWidth) - 10
-    if gameLevel > maxemies then
-        realDiff = maxemies
+    local numEnemies = gameLevel
+    local minEnemies = 1
+    local maxEnemies = (gridHeight * gridWidth)
+    if gameLevel < minEnemies then numEnemies = minEnemies end
+    if diagonalable then
+        numEnemies = numEnemies / 2
     end
-    print('generating ', minemies + realDiff, 'enemies')
-    for _ = 1, minemies + realDiff do
+    if numEnemies > maxEnemies then
+        print('reached maximum number of enemies')
+        numEnemies = maxEnemies
+    end
+    print('generating ', minEnemies + numEnemies, 'enemies')
+    for _ = 1, minEnemies + numEnemies do
         local placementCandidate = {}
         while true do
             placementCandidate.x = math.random(gridWidth)
@@ -537,7 +575,7 @@ local function drawCharacter(character, theGrid, coords, color)
     love.graphics.print(character, textX + (start * CELL_SIZE), textY)
 end
 
-function DrawMenu(text, textColor)
+function DrawMenu(text, textColor, warningText)
     local borderColor = COLOR_MENU_BOX_BORDER_NORMAL
     if GetDifficulty() == DIFFICULTY.Easy then
         borderColor = COLOR_MENU_BOX_BORDER_EASY
@@ -547,7 +585,7 @@ function DrawMenu(text, textColor)
         borderColor = COLOR_MENU_BOX_BORDER_EXTREME
     end
 
-    if not textColor then textColor = COLOR_MENU_TEXT end
+    if textColor == nil then textColor = COLOR_MENU_TEXT end
     love.graphics.setColor(borderColor)
     love.graphics.rectangle('fill',
         1.5 * CELL_SIZE - (.5 * CELL_SIZE),
@@ -566,11 +604,19 @@ function DrawMenu(text, textColor)
     love.graphics.print(text,
         2.5 * CELL_SIZE - (.5 * CELL_SIZE),
         (WINDOW_HEIGHT / 3.54) * SCALE)
-    local fontHint = "[F]: cycle fonts"
-    love.graphics.setColor(.1, .5, .5)
-    love.graphics.print(fontHint,
-        2 * CELL_SIZE,
-        WINDOW_HEIGHT * SCALE - 2.5 * CELL_SIZE)
+
+    if warningText then
+        love.graphics.setColor(COLOR_WARNING_TEXT)
+        love.graphics.print(warningText,
+            2 * CELL_SIZE,
+            WINDOW_HEIGHT * SCALE - 4 * CELL_SIZE)
+    else
+        local fontHint = "[F]: cycle fonts"
+        love.graphics.setColor(COLOR_SUBTLE_HINT)
+        love.graphics.print(fontHint,
+            2 * CELL_SIZE,
+            WINDOW_HEIGHT * SCALE - 2.5 * CELL_SIZE)
+    end
 end
 
 function GameOver()
@@ -619,8 +665,10 @@ function DrawChosen1()
 end
 
 function DrawEnemies()
+    local color = COLOR_ENEMY_CHARACTERS
+    if diagonalable then color = COLOR_BOSS_CHARACTERS end
     for _, enemy in pairs(findAllInRegistry(registry, ENEMY_CHARACTER)) do
-        drawCharacter(ENEMY_CHARACTER, grid, enemy, COLOR_ENEMY_CHARACTERS)
+        drawCharacter(ENEMY_CHARACTER, grid, enemy, color)
     end
 end
 

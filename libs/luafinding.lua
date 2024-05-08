@@ -11,8 +11,10 @@ Luafinding.__index = Luafinding
 -- positionOpenCheck can be a function or a table.
 -- If it's a function it must have a return value of true or false depending on whether or not the position is open.
 -- If it's a table it should simply be a table of values such as "pos[x][y] = true".
-function Luafinding:Initialize(start, finish, positionOpenCheck)
-    local newPath = setmetatable({ Start = start, Finish = finish, PositionOpenCheck = positionOpenCheck }, Luafinding)
+function Luafinding:Initialize(start, finish, positionOpenCheck, diagonalMovement)
+    local newPath = setmetatable(
+        { Start = start, Finish = finish, PositionOpenCheck = positionOpenCheck, DiagonalMovement = diagonalMovement },
+        Luafinding)
     newPath:CalculatePath()
     return newPath
 end
@@ -32,17 +34,30 @@ local adjacentPositions = {
     Vector(-1, 0),
     Vector(0, 1),
     Vector(1, 0),
-    -- Vector( -1, -1 ),
-    -- Vector( 1, -1 ),
-    -- Vector( -1, 1 ),
-    -- Vector( 1, 1 )
 }
 
-local function fetchOpenAdjacentNodes(pos, positionOpenCheck)
+local diagonalVectors = {
+    Vector(-1, -1),
+    Vector(1, -1),
+    Vector(-1, 1),
+    Vector(1, 1)
+}
+
+local function fetchOpenAdjacentNodes(pos, positionOpenCheck, diagonalMovement)
+    local actualAdjacentPositions = {}
+    for i = 1, #adjacentPositions, 1 do
+        table.insert(actualAdjacentPositions, adjacentPositions[i])
+    end
+    if diagonalMovement then
+        for i = 1, #diagonalVectors, 1 do
+            table.insert(actualAdjacentPositions, diagonalVectors[i])
+        end
+    end
+
     local result = {}
 
-    for i = 1, #adjacentPositions do
-        local adjacentPos = pos + adjacentPositions[i]
+    for i = 1, #actualAdjacentPositions do
+        local adjacentPos = pos + actualAdjacentPositions[i]
         if positionIsOpen(adjacentPos, positionOpenCheck) then
             table.insert(result, adjacentPos)
         end
@@ -90,7 +105,7 @@ function Luafinding:CalculatePath()
 
             closed[currentId] = true
 
-            local adjacents = fetchOpenAdjacentNodes(current, positionOpenCheck)
+            local adjacents = fetchOpenAdjacentNodes(current, positionOpenCheck, self.DiagonalMovement)
             for i = 1, #adjacents do
                 local adjacent = adjacents[i]
                 if not closed[adjacent:ID()] then
