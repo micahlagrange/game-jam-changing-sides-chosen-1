@@ -307,6 +307,11 @@ function love.keyreleased(k)
             PlaceChosen1()
             GenerateAmmo()
             GenerateEnemies()
+            if gameLevel % 5 == 4 then
+                otherRegistry[chosen1Location.x][chosen1Location.y + 1] = AMMO_CHARACTER
+                otherRegistry[chosen1Location.x + 1][chosen1Location.y + 1] = AMMO_CHARACTER
+                otherRegistry[chosen1Location.x - 1][chosen1Location.y + 1] = AMMO_CHARACTER
+            end
             local divisor = 2              -- normal difficultySetting
             if difficultySetting == 4 then -- easiest
                 divisor = 2
@@ -568,7 +573,7 @@ function MoveEnemies()
             if equalCoords(stepTo, POS) then
                 HurtMainCharacter()
             else
-                if IsNotObstacle(stepTo, gridWidth, gridHeight) and not IsAmmo(stepTo) then
+                if IsNotObstacle(stepTo, gridWidth, gridHeight) and not IsAmmo(stepTo, true) then
                     enemy = stepTo
                     MoveCharacterInRegistry(registry, ENEMY_CHARACTER, oldPos, enemy)
                 end
@@ -603,6 +608,7 @@ function HurtMainCharacter()
 end
 
 function GenerateAmmo()
+    local numAmmo
     local divisor = 2              -- normal mode
     if difficultySetting == 4 then -- easy
         divisor = 1
@@ -611,7 +617,7 @@ function GenerateAmmo()
         divisor = 3
     end
 
-    local numAmmo = gameLevel
+    numAmmo = gameLevel
     local maxAmmo = gameLevel / divisor
     if numAmmo > maxAmmo then
         numAmmo = maxAmmo
@@ -621,7 +627,7 @@ function GenerateAmmo()
         while true do
             placementCandidate.x = math.random(gridWidth)
             placementCandidate.y = math.random(gridHeight)
-            if not isCellNeighbor(POS, placementCandidate) then
+            if not isCellNeighbor(POS, placementCandidate) and not isCellNeighbor(POS, placementCandidate) then
                 registry[placementCandidate.x][placementCandidate.y] = AMMO_CHARACTER
                 break
             end
@@ -784,6 +790,9 @@ function DrawAmmo()
     for _, ammos in pairs(findAllInRegistry(registry, AMMO_CHARACTER)) do
         drawCharacter(AMMO_CHARACTER, grid, ammos, COLOR_AMMO)
     end
+    for _, ammos in pairs(findAllInRegistry(otherRegistry, AMMO_CHARACTER)) do
+        drawCharacter(AMMO_CHARACTER, otherGrid, ammos, COLOR_AMMO)
+    end
 end
 
 function TeleportTo(theRegistry, theGrid, oldRegistry, coords)
@@ -807,8 +816,9 @@ function IsTheChosen1(vector)
     return GetAtVector(otherRegistry, vector) == CHOSEN_1_CHARACTER
 end
 
-function IsAmmo(vector)
+function IsAmmo(vector, isEnemy)
     return GetAtVector(registry, vector) == AMMO_CHARACTER
+        or isEnemy == false and GetAtVector(otherRegistry, vector) == AMMO_CHARACTER
 end
 
 function GetAtVector(theRegistry, vector)
