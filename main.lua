@@ -1,8 +1,10 @@
 local Luafinding = require("libs.luafinding")
 local Vector = require("libs.vector")
 local Explosions = require("src.explosion")
+local Audio = require('src.audio')
 local Shake = require("src.shake")
 local debug = require("src.debug")
+
 require("src.chars")
 
 math.randomseed(os.time())
@@ -72,6 +74,7 @@ local chosen1Location = {}
 local currentPlayerRegistry = registry
 local currentPlayerGrid = grid
 local currentPlayerColor = { COLOR_MAIN_CHAR }
+local currentBGM
 local difficultySetting = 3
 local fontCache = {}
 local fontCurrent = 1
@@ -433,12 +436,20 @@ function LevelEnd()
     end
     if gameLevel % 5 == 0 then
         inputTimer = INPUT_DELAY
+        SetBGM("eliteZeroes")
         diagonalable = true
     else
+        SetBGM("mainTheme")
         diagonalable = false
     end
     claimedChosen1 = true
     points = points + 1
+end
+
+function SetBGM(name)
+    if currentBGM == name then return end
+    currentBGM = name
+    Audio.playBGM(name)
 end
 
 function love.load()
@@ -460,6 +471,7 @@ function love.load()
     fillFromRegistry(otherGrid, otherWidth, otherHeight, otherRegistry)
     PlaceChosen1()
     GenerateEnemies()
+    SetBGM("mainTheme")
 end
 
 function PlaceChosen1()
@@ -471,6 +483,7 @@ function PlaceMainCharacter()
 end
 
 function love.update(dt)
+    Audio.update()
     -- Fill the grid from registry
     for column = 1, gridWidth do
         for row = 1, gridHeight do
@@ -601,7 +614,9 @@ function love.draw()
         local goNextLevelText = ""
         local warningText = nil
         if gameLevel % 5 == 4 then warningText = "Elite zeroes are\non their way" end
-        if diagonalable then warningText = "An upgraded zero swarm...\nTHEY ATTACK DIAGONALLY\n   pick up a *" end
+        if diagonalable then
+            warningText = "An upgraded zero swarm...\nTHEY ATTACK DIAGONALLY\n   pick up a *"
+        end
         if inputtable then goNextLevelText = "[ENTER]: Go To Level " .. gameLevel end
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
             .. goNextLevelText,
@@ -903,8 +918,12 @@ function IsTheChosen1(vector)
 end
 
 function IsAmmo(vector, isEnemy)
+    if isEnemy then
+        return GetAtVector(registry, vector) == AMMO_CHARACTER
+    end
+
     return GetAtVector(registry, vector) == AMMO_CHARACTER
-        or isEnemy == false and GetAtVector(otherRegistry, vector) == AMMO_CHARACTER
+        or GetAtVector(otherRegistry, vector) == AMMO_CHARACTER
 end
 
 function GetAtVector(theRegistry, vector)
