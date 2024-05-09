@@ -45,7 +45,6 @@ function Audio.update(dt)
     love.audio.update()
 
     if pauseTimer > 0 then
-        print(pauseTimer)
         pauseTimer = pauseTimer - dt
         if pauseTimer <= 0 then
             currentBGM:play()

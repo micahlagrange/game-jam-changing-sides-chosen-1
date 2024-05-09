@@ -989,7 +989,7 @@ function CacheFonts()
 end
 
 function AddFontToCache(fontFile)
-    local dir = "achievementfonts/"
+    local dir = "achievementFonts/"
     fontCache[fontFile] = love.graphics.newFont(dir .. fontFile, FONT_SIZE * SCALE)
 end
 
