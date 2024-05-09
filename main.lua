@@ -68,7 +68,7 @@ local otherWidth = 5
 local otherHeight = 5
 -- game state
 local ammo = { "*" }
-local achievements = {}
+local achievementsEarned = {}
 local claimedChosen1 = false
 local chosen1Location = {}
 local currentPlayerRegistry = registry
@@ -299,12 +299,13 @@ local function kill(array, theRegistry, enemyKill)
         theRegistry[enemy.x][enemy.y] = getRandomElement(GROUND_CHARACTERS)
         if enemyKill then
             points = points + 1
+            Audio.playSFX('enemyDie')
             Shake.startShake(.1, 1)
             Explosions.new(enemy.x, enemy.y, 20, explosionColor, .5)
         end
     end
     if #array > 3 and enemyKill then
-        AddFontToCache("papyrus.ttf")
+        GetAchievement("papyrus.ttf")
         ShowNotification("QUADRAKILL [font unlock!]")
     end
 end
@@ -322,6 +323,7 @@ function MoveCharacterInRegistry(registeredTo, character, oldPos, newPos)
         registeredTo[oldPos.x][oldPos.y] = getRandomElement(GROUND_CHARACTERS)
     end
     -- set new character pos
+    Audio.playSFX("footStep")
     registeredTo[newPos.x][newPos.y] = character
 end
 
@@ -428,8 +430,9 @@ end
 function LevelEnd()
     gameLevel = gameLevel + 1
     if gameLevel == 7 then
-        AddFontToCache("DwarfFortress.ttf")
-        ShowNotification("7 Dwarves [font unlock!]")
+        if GetAchievement("DwarfFortress.ttf") then
+            ShowNotification("7 Dwarves [font unlock!]")
+        end
     end
     if gameLevel % 5 == 4 then
         inputTimer = INPUT_DELAY
@@ -483,7 +486,7 @@ function PlaceMainCharacter()
 end
 
 function love.update(dt)
-    Audio.update()
+    Audio.update(dt)
     -- Fill the grid from registry
     for column = 1, gridWidth do
         for row = 1, gridHeight do
@@ -990,6 +993,12 @@ function AddFontToCache(fontFile)
     fontCache[fontFile] = love.graphics.newFont(dir .. fontFile, FONT_SIZE * SCALE)
 end
 
--- function GetAchievement(name)
---     if achievements
--- end
+function GetAchievement(name)
+    if achievementsEarned[name] == nil then
+        Audio.interruptMusicSFX('achievement')
+        achievementsEarned[name] = true
+        AddFontToCache(name)
+        return true
+    end
+    return false
+end

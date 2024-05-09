@@ -8,7 +8,7 @@ do
         if #sources == 0 then return end
         local remove = {}
         for _, s in pairs(sources) do
-            if s:isStopped() then
+            if not s:isPlaying() then
                 remove[#remove + 1] = s
             end
         end
