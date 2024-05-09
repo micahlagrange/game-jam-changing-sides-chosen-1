@@ -32,12 +32,15 @@ COLOR_MENU_BOX_BORDER_NORMAL = { .1, .3, .3 }
 COLOR_MENU_BOX_BORDER_HARD = { .5, .2, .2 }
 COLOR_MENU_BOX_BORDER_EXTREME = { 1, 0, 0 }
 COLOR_MENU_BOX = { .1, .2, .3 }
+COLOR_NOTIFICATION_TEXT = { 1, .5, .4 }
+COLOR_NOTIFICATION_BOX = { .8, .8, .6 }
 COLOR_SUBTLE_HINT = { .1, .5, .5 }
 COLOR_WARNING_TEXT = { 1, .2, .4 }
 
 SAVE_SCORE_FILE = ".highscore.c1d"
 HURT_DELAY = .3
 INPUT_DELAY = 1
+NOTIFICATION_DELAY = 3
 WEB_OS = "Web"
 
 DIFFICULTY = {}
@@ -63,6 +66,7 @@ local otherWidth = 5
 local otherHeight = 5
 -- game state
 local ammo = { "*" }
+local achievements = {}
 local claimedChosen1 = false
 local chosen1Location = {}
 local currentPlayerRegistry = registry
@@ -77,6 +81,8 @@ local highScoreDefeated = false
 local hurtTimer = 0
 local inputtable = true
 local inputTimer = 0
+local notificationTimer = 0
+local notificationText = ""
 local playerHp = difficultySetting
 local playable = false
 local points = 0
@@ -247,6 +253,36 @@ local function drawGrid(theGrid, width, height, bgColor, textColor, start)
     end
 end
 
+local function drawBox(startCoords, endCoords, color)
+    love.graphics.setColor(color)
+    love.graphics.rectangle("fill",
+        startCoords.x, startCoords.y,
+        endCoords.x, endCoords.y
+    )
+end
+
+local function offsetBoxStart(coords, size)
+    if not size then size = .5 end
+    return {
+        x = coords.x + (size * CELL_SIZE),
+        y = coords.y + (size * CELL_SIZE)
+    }
+end
+
+local function offsetBoxEnd(coords, size)
+    if not size then size = 1 end
+    return {
+        x = coords.x - (size * CELL_SIZE),
+        y = coords.y - (size * CELL_SIZE)
+    }
+end
+
+local function niceBox(borderStartCoords, borderEndCoords, borderColor, innerColor, borderSize)
+    if not borderSize then borderSize = .5 end
+    drawBox(borderStartCoords, borderEndCoords, borderColor)
+    drawBox(offsetBoxStart(borderStartCoords, borderSize), offsetBoxEnd(borderEndCoords, borderSize * 2), innerColor)
+end
+
 local function kill(array, theRegistry, enemyKill)
     local explosionColor = COLOR_ENEMY_EXPLOSION
     if #ammo > 0 then
@@ -263,6 +299,10 @@ local function kill(array, theRegistry, enemyKill)
             Shake.startShake(.1, 1)
             Explosions.new(enemy.x, enemy.y, 20, explosionColor, .5)
         end
+    end
+    if #array > 3 and enemyKill then
+        AddFontToCache("papyrus.ttf")
+        ShowNotification("QUADRAKILL [font unlock!]")
     end
 end
 
@@ -384,6 +424,10 @@ end
 
 function LevelEnd()
     gameLevel = gameLevel + 1
+    if gameLevel == 7 then
+        AddFontToCache("DwarfFortress.ttf")
+        ShowNotification("7 Dwarves [font unlock!]")
+    end
     if gameLevel % 5 == 4 then
         inputTimer = INPUT_DELAY
     end
@@ -403,7 +447,7 @@ function love.load()
     currentPlayerGrid = grid
     LoadHighScore()
     playerHp = difficultySetting
-    love.graphics.setFont(fontCache[fontCurrent])
+    CycleFont(true)
     initRegistry(registry, gridWidth, gridHeight)
     initRegistry(otherRegistry, otherWidth, otherHeight)
     -- put the main character in the middle of the grid
@@ -479,14 +523,20 @@ function GetDifficulty()
     return DIFFICULTY[difficultySetting]
 end
 
+local function centeredTextPlacement(text)
+    local textWidth = GetFont():getWidth(text)
+    local start = (love.graphics.getWidth() / 2) - (textWidth / 2) - 1
+    return start
+end
+
 local function rightOfScreenPlacement(text)
-    local textWidth = fontCache[fontCurrent]:getWidth(text)
+    local textWidth = GetFont():getWidth(text)
     local start = love.graphics.getWidth() - textWidth
     return start
 end
 
 local function bottomOfScreenPlacement(text)
-    local textHeight = fontCache[fontCurrent]:getHeight(text)
+    local textHeight = GetFont():getHeight(text)
     local start = love.graphics.getHeight() - textHeight
     return start
 end
@@ -558,6 +608,7 @@ function love.draw()
             nil,
             warningText)
     end
+    DrawNotification()
 end
 
 function MoveEnemies()
@@ -589,11 +640,47 @@ function TickTimers(dt)
             currentPlayerColor = COLOR_MAIN_CHAR
         end
     end
+    if notificationTimer >= 0 then
+        notificationTimer = notificationTimer - dt
+        if notificationTimer <= 0 then
+            HideNotification()
+        end
+    end
     if inputTimer >= 0 then
         inputTimer = inputTimer - dt
         inputtable = false
     else
         inputtable = true
+    end
+end
+
+function HideNotification()
+    notificationText = ""
+end
+
+function ShowNotification(text)
+    inputTimer = INPUT_DELAY
+    notificationText = text
+    notificationTimer = NOTIFICATION_DELAY
+end
+
+function DrawNotification()
+    if notificationText ~= "" then
+        niceBox({
+                x = 1 * CELL_SIZE,
+                y = bottomOfScreenPlacement(notificationText) - 1.5 * CELL_SIZE
+            },
+            {
+                x = love.graphics.getWidth() - 2 * CELL_SIZE,
+                y = 2 * CELL_SIZE
+            },
+            COLOR_MENU_BOX_BORDER_NORMAL,
+            COLOR_NOTIFICATION_BOX,
+            .3)
+        love.graphics.setColor(COLOR_NOTIFICATION_TEXT)
+        love.graphics.print(notificationText,
+            2 * CELL_SIZE,
+            bottomOfScreenPlacement(notificationText) - 1 * CELL_SIZE)
     end
 end
 
@@ -700,25 +787,24 @@ function DrawMenu(text, textColor, warningText)
     end
 
     if textColor == nil then textColor = COLOR_MENU_TEXT end
-    love.graphics.setColor(borderColor)
-    love.graphics.rectangle("fill",
-        1.5 * CELL_SIZE - (.5 * CELL_SIZE),
-        1.5 * CELL_SIZE - (.5 * CELL_SIZE),
-        WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
-        WINDOW_HEIGHT * SCALE - (2 * CELL_SIZE)
-    )
-    love.graphics.setColor(COLOR_MENU_BOX)
-    love.graphics.rectangle("fill",
-        2 * CELL_SIZE - (.5 * CELL_SIZE),
-        2 * CELL_SIZE - (.5 * CELL_SIZE),
-        WINDOW_WIDTH * SCALE - (3 * CELL_SIZE),
-        WINDOW_HEIGHT * SCALE - (3 * CELL_SIZE)
-    )
+    niceBox({
+            x = 1.5 * CELL_SIZE - (.5 * CELL_SIZE),
+            y = 1.5 * CELL_SIZE - (.5 * CELL_SIZE)
+        },
+        {
+            x = WINDOW_WIDTH * SCALE - (2 * CELL_SIZE),
+            y = WINDOW_HEIGHT * SCALE - (2 * CELL_SIZE)
+        },
+        borderColor,
+        COLOR_MENU_BOX)
+
+    -- menu text
     love.graphics.setColor(textColor)
     love.graphics.print(text,
         2.5 * CELL_SIZE - (.5 * CELL_SIZE),
         (WINDOW_HEIGHT / 3.54) * SCALE)
 
+    -- warning text
     if warningText then
         love.graphics.setColor(COLOR_WARNING_TEXT)
         love.graphics.print(warningText,
@@ -828,10 +914,47 @@ function GetAtVector(theRegistry, vector)
     return false
 end
 
-function CycleFont()
-    fontCurrent = fontCurrent + 1
-    if fontCurrent > #fontCache then fontCurrent = 1 end
-    love.graphics.setFont(fontCache[fontCurrent])
+function GetFont()
+    local fontNames = {}
+    for k in pairs(fontCache) do
+        table.insert(fontNames, k)
+    end
+    for i = 1, #fontNames do
+        if i == fontCurrent then
+            return fontCache[fontNames[i]]
+        end
+    end
+end
+
+function GetFontName()
+    local fontNames = {}
+    for k in pairs(fontCache) do
+        table.insert(fontNames, k)
+    end
+    for i = 1, #fontNames do
+        if i == fontCurrent then
+            return fontNames[i]
+        end
+    end
+end
+
+function CycleFont(initial)
+    if not initial then
+        fontCurrent = fontCurrent + 1
+    end
+    local fontNames = {}
+    for k in pairs(fontCache) do
+        table.insert(fontNames, k)
+    end
+    if fontCurrent > #fontNames then fontCurrent = 1 end
+    for i = 1, #fontNames do
+        if i == fontCurrent then
+            love.graphics.setFont(fontCache[fontNames[i]])
+        end
+    end
+    if not initial then
+        ShowNotification(GetFontName())
+    end
 end
 
 function CacheFonts()
@@ -839,6 +962,15 @@ function CacheFonts()
     local files = love.filesystem.getDirectoryItems(dir)
     for _, file in ipairs(files) do
         print(file)
-        table.insert(fontCache, love.graphics.newFont(dir .. file, FONT_SIZE * SCALE))
+        fontCache[file] = love.graphics.newFont(dir .. file, FONT_SIZE * SCALE)
     end
 end
+
+function AddFontToCache(fontFile)
+    local dir = "achievementfonts/"
+    fontCache[fontFile] = love.graphics.newFont(dir .. fontFile, FONT_SIZE * SCALE)
+end
+
+-- function GetAchievement(name)
+--     if achievements
+-- end
