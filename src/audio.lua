@@ -8,7 +8,7 @@ local currentBGM
 local pauseTimer = 0
 
 local files = {
-    mainTheme = 'sfx/Changing_sides.wav',
+    mainTheme = 'sfx/Changing_Sides.wav',
     eliteZeroes = 'sfx/Elite_Zeroes.wav',
     footStep = {
         'sfx/foot step1.mp3',
