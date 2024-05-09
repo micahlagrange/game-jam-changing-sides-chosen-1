@@ -67,7 +67,7 @@ local otherGrid = {}
 local otherWidth = 5
 local otherHeight = 5
 -- game state
-local ammo = { "*" }
+local ammo = {}
 local achievementsEarned = {}
 local claimedChosen1 = false
 local chosen1Location = {}
@@ -304,9 +304,13 @@ local function kill(array, theRegistry, enemyKill)
             Explosions.new(enemy.x, enemy.y, 20, explosionColor, .5)
         end
     end
-    if #array > 3 and enemyKill then
-        GetAchievement("papyrus.ttf")
+    if #array >= 4 and enemyKill then
+        GetAchievement("commodore64.ttf")
         ShowNotification("QUADRAKILL [font unlock!]")
+    end
+    if #array >= 5 and enemyKill then
+        GetAchievement("white-rabbit.TTF")
+        ShowNotification("PENTAKILL [font unlock!]")
     end
 end
 
@@ -561,9 +565,9 @@ end
 function love.draw()
     -- HUD
     love.graphics.setColor(COLOR_GUI_TEXT)
-    love.graphics.print("CHARGE:" .. playerHp
-        .. "   LEVEL:" .. gameLevel
-        .. "    POINTS:" .. points,
+    love.graphics.print("Charge:" .. playerHp
+        .. " Level:" .. gameLevel
+        .. " Points:" .. points,
         10,
         10)
     love.graphics.setColor(COLOR_AMMO)
@@ -577,19 +581,19 @@ function love.draw()
     Explosions.draw()
     if playable and not gameResettable and not claimedChosen1 then
         local moveHint = ""
-        if #ammo > 0 then moveHint = "  /DIAGONALLY/" end
+        if #ammo > 0 then moveHint = "  diagonally" end
         love.graphics.setColor(COLOR_GUI_TEXT)
-        love.graphics.print("[SPACE/CTRL]: attack" .. moveHint .. "\n"
-            .. "[WASD]: move " .. moveHint .. "\n"
-            .. " Objective: Collect a chosen 1",
+        love.graphics.print("[space/ctrl]: attack" .. moveHint .. "\n"
+            .. "[wasd]: move " .. moveHint .. "\n"
+            .. " objective: collect a chosen 1",
             0,
             6 * CELL_SIZE + 10)
     end
     if not playable then
-        local introText = "[ENTER]: Start a New Game\n"
-            .. "[ARROWKEYS]: Difficulty\n"
+        local introText = "[enter]: start a new game\n"
+            .. "[arrowkeys]: difficulty\n"
             .. "             { " .. GetDifficulty() .. " }\n\n"
-            .. " High Score: "
+            .. " high score: "
             .. previousHighScore[difficultySetting]
 
         DrawMenu(introText)
@@ -794,7 +798,12 @@ local function drawCharacter(character, theGrid, coords, color)
     love.graphics.print(character, textX + (start * CELL_SIZE), textY)
 end
 
+local function bigFont(font)
+    return font == 'commodore64.ttf' or font == 'papyrus.ttf'
+end
+
 function DrawMenu(text, textColor, warningText)
+    if bigFont(GetFont()) then text = string.lower(text) end
     local borderColor = COLOR_MENU_BOX_BORDER_NORMAL
     if GetDifficulty() == DIFFICULTY.Easy then
         borderColor = COLOR_MENU_BOX_BORDER_EASY
@@ -828,7 +837,7 @@ function DrawMenu(text, textColor, warningText)
         love.graphics.print(warningText,
             2 * CELL_SIZE,
             WINDOW_HEIGHT * SCALE - 4 * CELL_SIZE)
-    else
+    elseif #achievementsEarned > 0 then
         local fontHint = "[F]: cycle fonts"
         love.graphics.setColor(COLOR_SUBTLE_HINT)
         love.graphics.print(fontHint,
@@ -871,6 +880,7 @@ function ResetGame()
     TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
     love.load()
     MoveCharacterInRegistry(currentPlayerRegistry, MAIN_CHARACTER, { x = 1, y = 1 }, POS)
+    ammo = {}
     playable = false
 end
 
@@ -991,6 +1001,7 @@ end
 function AddFontToCache(fontFile)
     local dir = "achievementFonts/"
     fontCache[fontFile] = love.graphics.newFont(dir .. fontFile, FONT_SIZE * SCALE)
+    love.graphics.setFont(fontCache[fontFile])
 end
 
 function GetAchievement(name)
