@@ -305,7 +305,7 @@ local function kill(array, theRegistry, enemyKill)
         end
     end
     if #array >= 4 and enemyKill then
-        GetAchievement("commodore64.ttf")
+        GetAchievement("papyrus.ttf")
         ShowNotification("QUADRAKILL [font unlock!]")
     end
     if #array >= 5 and enemyKill then
@@ -433,6 +433,11 @@ end
 
 function LevelEnd()
     gameLevel = gameLevel + 1
+    if gameLevel == 3 then
+        if GetAchievement("commodore64.ttf") then
+            ShowNotification("PewPew [font unlock!]")
+        end
+    end
     if gameLevel == 7 then
         if GetAchievement("DwarfFortress.ttf") then
             ShowNotification("7 Dwarves [font unlock!]")
@@ -850,14 +855,9 @@ function GameOver()
     local data = nil
     if love.system.getOS() ~= WEB_OS then
         data, _ = love.filesystem.read(getSaveFileName())
-        if not data then
+        if data ~= nil or points > tonumber(data) then
             love.filesystem.write(getSaveFileName(), points)
             highScoreDefeated = true
-        else
-            if points > tonumber(data) then
-                love.filesystem.write(getSaveFileName(), points)
-                highScoreDefeated = true
-            end
         end
         LoadHighScore() -- do this so the var has it cached for other loops
     else
