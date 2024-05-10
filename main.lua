@@ -491,12 +491,12 @@ end
 function love.load()
     CacheFonts()
     LoadAchievements()
-    love.graphics.setFont(fontCache['AppleII.ttf'])
     currentPlayerRegistry = registry
     currentPlayerGrid = grid
     LoadHighScore()
     playerHp = difficultySetting
     CycleFont(true)
+    love.graphics.setFont(fontCache['AppleII.ttf'])
     initRegistry(registry, gridWidth, gridHeight)
     initRegistry(otherRegistry, otherWidth, otherHeight)
     -- put the main character in the middle of the grid
@@ -1096,7 +1096,7 @@ end
 
 function LoadAchievements()
     if love.system.getOS() == WEB_OS then
-        ShowNotification("Saving achievements/score works\non downloaded version only!")
+        ShowNotification("Saving achievements/score\nworks only if downloaded!")
         return
     end
     local data = love.filesystem.read(achievementsSaveFileName())
