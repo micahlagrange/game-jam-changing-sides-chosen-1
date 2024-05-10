@@ -3,7 +3,7 @@ local Vector = require("libs.vector")
 local Explosions = require("src.explosion")
 local Audio = require('src.audio')
 local Shake = require("src.shake")
-local debug = require("src.debug")
+-- local debug = require("src.debug")
 
 require("src.chars")
 
@@ -12,7 +12,7 @@ love.graphics.setDefaultFilter("nearest", "nearest")
 love.window.setMode(WINDOW_WIDTH * SCALE, WINDOW_HEIGHT * SCALE)
 
 CHOSEN_1_CHARACTER = "1"
-GROUND_CHARACTERS = { ".", ",", "'", } --'·' } --, CHARS.CEDILLA } --, CHARS.DEGREES, CHARS.INTERPUNCT, CHARS.ACCENT, CHARS.BACKTICK, CHARS.ORDINAL }
+GROUND_CHARACTERS = { ".", ",", "'" }
 ENEMY_CHARACTER = "0"
 MAIN_CHARACTER = "@"
 AMMO_CHARACTER = "*"
@@ -40,6 +40,7 @@ COLOR_SUBTLE_HINT = { .1, .5, .5 }
 COLOR_WARNING_TEXT = { 1, .2, .4 }
 
 SAVE_SCORE_FILE = ".highscore.c1d"
+SAVE_ACHIEVEMENTS_FILE = ".achievements.c1d"
 HURT_DELAY = .3
 INPUT_DELAY = 1
 NOTIFICATION_DELAY = 3
@@ -96,8 +97,12 @@ previousHighScore[2] = 0
 previousHighScore[3] = 0
 previousHighScore[4] = 0
 
-local function getSaveFileName()
+local function highScoreSaveFileName()
     return "difficulty" .. difficultySetting .. SAVE_SCORE_FILE
+end
+
+local function achievementsSaveFileName()
+    return "difficulty" .. difficultySetting .. SAVE_ACHIEVEMENTS_FILE
 end
 
 local function cycleDifficulty(direction)
@@ -219,6 +224,10 @@ local function toVector(coords)
     return Vector(coords.x, coords.y)
 end
 
+local function bigFont(font)
+    return font == 'commodore64.ttf' or font == 'papyrus.ttf'
+end
+
 local function centerOfCell(theGrid, col, row)
     assert(theGrid ~= nil, "theGrid may not be nil")
     assert(col ~= nil, "col may not be nil")
@@ -305,12 +314,14 @@ local function kill(array, theRegistry, enemyKill)
         end
     end
     if #array >= 4 and enemyKill then
-        GetAchievement("papyrus.ttf")
-        ShowNotification("QUADRAKILL [font unlock!]")
+        if GetAchievement("papyrus.ttf") then
+            ShowNotification("QUADRAKILL [font unlock!]")
+        end
     end
     if #array >= 5 and enemyKill then
-        GetAchievement("white-rabbit.TTF")
-        ShowNotification("PENTAKILL [font unlock!]")
+        if GetAchievement("white-rabbit.TTF") then
+            ShowNotification("PENTAKILL [font unlock!]")
+        end
     end
 end
 
@@ -339,7 +350,9 @@ function love.keyreleased(k)
     if not playable then
         if k == "left" or k == "down" then cycleDifficulty() end
         if k == "right" or k == "up" then cycleDifficulty(-1) end
-        if k == "return" or k == "kpenter" and inputtable then playable = true end
+        if k == "return" or k == "kpenter" and inputtable then
+            playable = true
+        end
         return
     end
     if gameResettable then
@@ -348,7 +361,7 @@ function love.keyreleased(k)
         end
         return
     elseif claimedChosen1 then
-        if k == "return" or k == "kpenter" and inputtable then
+        if (k == "return" or k == "kpenter") and inputtable then
             claimedChosen1 = false
             TeleportTo(registry, grid, otherRegistry, { x = 1, y = 1 })
             PlaceMainCharacter()
@@ -437,35 +450,41 @@ function LevelEnd()
         if GetAchievement("commodore64.ttf") then
             ShowNotification("PewPew [font unlock!]")
         end
-    end
-    if gameLevel == 7 then
+    elseif gameLevel == 7 then
         if GetAchievement("DwarfFortress.ttf") then
             ShowNotification("7 Dwarves [font unlock!]")
         end
-    end
-    if gameLevel % 5 == 4 then
+    elseif gameLevel % 5 == 4 then
         inputTimer = INPUT_DELAY
-    end
-    if gameLevel % 5 == 0 then
+        -- Audio.interruptMusicSFX('achievement')
+    elseif gameLevel % 5 == 0 then
         inputTimer = INPUT_DELAY
         SetBGM("eliteZeroes")
         diagonalable = true
     else
-        SetBGM("mainTheme")
         diagonalable = false
+    end
+    if gameLevel < 5 then
+        SetBGM("mainTheme")
+    elseif gameLevel < 10 then
+        SetBGM("asteriskStar")
     end
     claimedChosen1 = true
     points = points + 1
+    SaveAchievements()
 end
 
 function SetBGM(name)
+    print('return early?', currentBGM, name, currentBGM == name, gameLevel)
     if currentBGM == name then return end
-    currentBGM = name
+    print('nah')
     Audio.playBGM(name)
+    currentBGM = name
 end
 
 function love.load()
     CacheFonts()
+    LoadAchievements()
     currentPlayerRegistry = registry
     currentPlayerGrid = grid
     LoadHighScore()
@@ -516,7 +535,7 @@ end
 
 function LoadHighScore()
     if love.system.getOS() ~= WEB_OS then
-        local saveData, _ = love.filesystem.read(getSaveFileName())
+        local saveData, _ = love.filesystem.read(highScoreSaveFileName())
         if saveData then previousHighScore[difficultySetting] = saveData else previousHighScore[difficultySetting] = 0 end
     else
         if points > previousHighScore[difficultySetting] then
@@ -569,12 +588,12 @@ end
 -- Draw the grid
 function love.draw()
     -- HUD
-    love.graphics.setColor(COLOR_GUI_TEXT)
-    love.graphics.print("Charge:" .. playerHp
+    DrawGUIElement("Charge:" .. playerHp
         .. " Level:" .. gameLevel
         .. " Points:" .. points,
         10,
-        10)
+        10,
+        COLOR_GUI_TEXT)
     love.graphics.setColor(COLOR_AMMO)
     love.graphics.print(GetAmmoBar(), rightOfScreenPlacement(GetAmmoBar()) - 10, 10)
     Shake.draw()
@@ -595,9 +614,9 @@ function love.draw()
             6 * CELL_SIZE + 10)
     end
     if not playable then
-        local introText = "[enter]: start a new game\n"
+        local introText = "[enter]: new game\n"
             .. "[arrowkeys]: difficulty\n"
-            .. "             { " .. GetDifficulty() .. " }\n\n"
+            .. "       { " .. GetDifficulty() .. " }\n\n"
             .. " high score: "
             .. previousHighScore[difficultySetting]
 
@@ -636,6 +655,12 @@ function love.draw()
             warningText)
     end
     DrawNotification()
+end
+
+function DrawGUIElement(text, x, y, color)
+    if bigFont(GetFont()) then text = string.lower(text) end
+    love.graphics.setColor(color)
+    love.graphics.print(text, x, y)
 end
 
 function MoveEnemies()
@@ -803,12 +828,11 @@ local function drawCharacter(character, theGrid, coords, color)
     love.graphics.print(character, textX + (start * CELL_SIZE), textY)
 end
 
-local function bigFont(font)
-    return font == 'commodore64.ttf' or font == 'papyrus.ttf'
-end
-
 function DrawMenu(text, textColor, warningText)
-    if bigFont(GetFont()) then text = string.lower(text) end
+    if bigFont(GetFont()) then
+        text = string.lower(text)
+    end
+
     local borderColor = COLOR_MENU_BOX_BORDER_NORMAL
     if GetDifficulty() == DIFFICULTY.Easy then
         borderColor = COLOR_MENU_BOX_BORDER_EASY
@@ -852,11 +876,13 @@ function DrawMenu(text, textColor, warningText)
 end
 
 function GameOver()
+    Audio.stopMusic()
+    Audio.interruptMusicSFX("gameover")
     local data = nil
     if love.system.getOS() ~= WEB_OS then
-        data, _ = love.filesystem.read(getSaveFileName())
+        data, _ = love.filesystem.read(highScoreSaveFileName())
         if data ~= nil or points > tonumber(data) then
-            love.filesystem.write(getSaveFileName(), points)
+            love.filesystem.write(highScoreSaveFileName(), points)
             highScoreDefeated = true
         end
         LoadHighScore() -- do this so the var has it cached for other loops
@@ -1011,5 +1037,47 @@ function GetAchievement(name)
         AddFontToCache(name)
         return true
     end
+
     return false
+end
+
+local function splitString(inputstr, sep)
+    if sep == nil then
+        sep = "%s"
+    end
+    local t = {}
+    for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+        table.insert(t, str)
+    end
+    return t
+end
+
+local function deserialize(data)
+    return splitString(data, ",")
+end
+
+local function serialize(table)
+    local data = ""
+    for ach in pairs(achievementsEarned) do
+        data = data .. ach .. ","
+    end
+    return data
+end
+
+function SaveAchievements()
+    love.filesystem.write(achievementsSaveFileName(), serialize(achievementsEarned))
+end
+
+function LoadAchievements()
+    if love.system.getOS() == WEB_OS then return end
+    local data = love.filesystem.read(achievementsSaveFileName())
+    if data == nil then return end
+    local achievementList = deserialize(data)
+    for _, ach in ipairs(achievementList) do
+        achievementsEarned[ach] = true
+    end
+    for ach, _ in pairs(achievementsEarned) do
+        print('ach', ach)
+        AddFontToCache(ach)
+    end
 end

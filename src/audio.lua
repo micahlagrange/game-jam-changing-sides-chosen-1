@@ -10,6 +10,9 @@ local pauseTimer = 0
 local files = {
     mainTheme = 'sfx/Changing_Sides.wav',
     eliteZeroes = 'sfx/Elite_Zeroes.wav',
+    asteriskStar = 'sfx/Asterisk_Star.wav',
+    weeb = 'sfx/The_Chosen_Weeb.wav',
+    achievement = 'sfx/youWin.mp3',
     footStep = {
         'sfx/foot step1.mp3',
         'sfx/foot step2.mp3',
@@ -19,7 +22,7 @@ local files = {
     },
     enemyDie = { 'sfx/Attacking_Total_Zeroes1.wav',
         'sfx/Attacking_Total_Zeroes2.wav' },
-    achievement = 'sfx/achievement.mp3'
+    gameover = 'sfx/achievement.mp3'
 }
 
 function Audio.playSFX(name)
