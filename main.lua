@@ -323,7 +323,7 @@ local function kill(array, theRegistry, enemyKill)
             ShowNotification("PENTAKILL [font unlock!]")
         end
     end
-    if #array >= 1 and enemyKill then
+    if #array >= 7 and enemyKill then
         if GetAchievement("SyukriaRegular.ttf") then
             ShowNotification("SEPTAKILL [font unlock!]")
         end
@@ -722,10 +722,11 @@ function HideNotification()
     notificationText = ""
 end
 
-function ShowNotification(text)
+function ShowNotification(text, delay)
+    local delay = delay or INPUT_DELAY
     if text == nil then return end
     if bigFont(GetFontName()) then text = string.lower(text) end
-    inputTimer = INPUT_DELAY
+    inputTimer = delay
     notificationText = text
     notificationTimer = NOTIFICATION_DELAY
 end
