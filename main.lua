@@ -323,6 +323,11 @@ local function kill(array, theRegistry, enemyKill)
             ShowNotification("PENTAKILL [font unlock!]")
         end
     end
+    if #array >= 1 and enemyKill then
+        if GetAchievement("SyukriaRegular.ttf") then
+            ShowNotification("SEPTAKILL [font unlock!]")
+        end
+    end
 end
 
 
@@ -446,6 +451,13 @@ end
 
 function LevelEnd()
     gameLevel = gameLevel + 1
+    if gameLevel < 5 then
+        SetBGM("mainTheme")
+    elseif gameLevel < 10 then
+        SetBGM("asteriskStar")
+    elseif gameLevel > 10 then
+        SetBGM("weeb")
+    end
     if gameLevel == 3 then
         if GetAchievement("commodore64.ttf") then
             ShowNotification("PewPew [font unlock!]")
@@ -464,27 +476,22 @@ function LevelEnd()
     else
         diagonalable = false
     end
-    if gameLevel < 5 then
-        SetBGM("mainTheme")
-    elseif gameLevel < 10 then
-        SetBGM("asteriskStar")
-    end
     claimedChosen1 = true
     points = points + 1
     SaveAchievements()
 end
 
 function SetBGM(name)
-    print('return early?', currentBGM, name, currentBGM == name, gameLevel)
     if currentBGM == name then return end
-    print('nah')
     Audio.playBGM(name)
     currentBGM = name
+    print('Play ' .. name)
 end
 
 function love.load()
     CacheFonts()
     LoadAchievements()
+    love.graphics.setFont(fontCache['AppleII.ttf'])
     currentPlayerRegistry = registry
     currentPlayerGrid = grid
     LoadHighScore()
@@ -588,14 +595,17 @@ end
 -- Draw the grid
 function love.draw()
     -- HUD
+    DrawGUIElement(
+        GetAmmoBar(),
+        rightOfScreenPlacement(GetAmmoBar()) - 10,
+        10,
+        COLOR_AMMO)
     DrawGUIElement("Charge:" .. playerHp
         .. " Level:" .. gameLevel
         .. " Points:" .. points,
         10,
         10,
         COLOR_GUI_TEXT)
-    love.graphics.setColor(COLOR_AMMO)
-    love.graphics.print(GetAmmoBar(), rightOfScreenPlacement(GetAmmoBar()) - 10, 10)
     Shake.draw()
     -- RENDER THE MAIN GRID
     drawGrid(grid, gridWidth, gridHeight, COLOR_BG_MAIN, COLOR_GROUND)
@@ -614,10 +624,10 @@ function love.draw()
             6 * CELL_SIZE + 10)
     end
     if not playable then
-        local introText = "[enter]: new game\n"
-            .. "[arrowkeys]: difficulty\n"
+        local introText = "[enter]: New Game\n"
+            .. "[arrowkeys]: Difficulty\n"
             .. "       { " .. GetDifficulty() .. " }\n\n"
-            .. " high score: "
+            .. " High Score: "
             .. previousHighScore[difficultySetting]
 
         DrawMenu(introText)
@@ -629,11 +639,11 @@ function love.draw()
             .. "\n Previous High Score:" .. previousHighScore[difficultySetting]
         local escapeClause = ""
         if highScoreDefeated then
-            congrats = "\n                NEW HIGH SCORE!!\n"
+            congrats = "\n     NEW HIGH SCORE!!\n"
                 .. "Difficulty " .. GetDifficulty() .. "--> " .. points
         end
         if love.system.getOS() ~= WEB_OS then
-            escapeClause = "[ESCAPE]:   Exit\n"
+            escapeClause = "[escape]:   Exit\n"
         end
         DrawMenu("[F1]: reset\n"
             .. escapeClause
@@ -645,10 +655,11 @@ function love.draw()
         local goNextLevelText = ""
         local warningText = nil
         if gameLevel % 5 == 4 then warningText = "Elite zeroes are\non their way" end
+        if gameLevel == 7 then warningText = "1,3,7,9 on keypad to\nmove diagonally" end
         if diagonalable then
             warningText = "An upgraded zero swarm...\nTHEY ATTACK DIAGONALLY\n   pick up a *"
         end
-        if inputtable then goNextLevelText = "[ENTER]: Go To Level " .. gameLevel end
+        if inputtable then goNextLevelText = "[enter]: Go To Level " .. gameLevel end
         DrawMenu("CHOSEN 1 FOUND!!\n\n"
             .. goNextLevelText,
             nil,
@@ -658,7 +669,8 @@ function love.draw()
 end
 
 function DrawGUIElement(text, x, y, color)
-    if bigFont(GetFont()) then text = string.lower(text) end
+    if text == nil then return end
+    if bigFont(GetFontName()) then text = string.lower(text) end
     love.graphics.setColor(color)
     love.graphics.print(text, x, y)
 end
@@ -711,6 +723,8 @@ function HideNotification()
 end
 
 function ShowNotification(text)
+    if text == nil then return end
+    if bigFont(GetFontName()) then text = string.lower(text) end
     inputTimer = INPUT_DELAY
     notificationText = text
     notificationTimer = NOTIFICATION_DELAY
@@ -829,8 +843,13 @@ local function drawCharacter(character, theGrid, coords, color)
 end
 
 function DrawMenu(text, textColor, warningText)
-    if bigFont(GetFont()) then
-        text = string.lower(text)
+    if bigFont(GetFontName()) then
+        if text ~= nil then
+            text = string.lower(text)
+        end
+        if warningText ~= nil then
+            warningText = string.lower(warningText)
+        end
     end
 
     local borderColor = COLOR_MENU_BOX_BORDER_NORMAL
@@ -875,13 +894,12 @@ function DrawMenu(text, textColor, warningText)
     end
 end
 
-function GameOver()
-    Audio.stopMusic()
-    Audio.interruptMusicSFX("gameover")
+function SaveHighScore()
     local data = nil
     if love.system.getOS() ~= WEB_OS then
         data, _ = love.filesystem.read(highScoreSaveFileName())
-        if data ~= nil or points > tonumber(data) then
+        if data == nil then data = '0' end
+        if points > tonumber(data) then
             love.filesystem.write(highScoreSaveFileName(), points)
             highScoreDefeated = true
         end
@@ -892,7 +910,13 @@ function GameOver()
             highScoreDefeated = true
         end
     end
+end
+
+function GameOver()
+    Audio.stopMusic()
+    Audio.interruptMusicSFX("gameover")
     gameResettable = true
+    SaveHighScore()
 end
 
 function ResetGame()
@@ -1065,11 +1089,15 @@ local function serialize(table)
 end
 
 function SaveAchievements()
+    if love.system.getOS() == WEB_OS then return end
     love.filesystem.write(achievementsSaveFileName(), serialize(achievementsEarned))
 end
 
 function LoadAchievements()
-    if love.system.getOS() == WEB_OS then return end
+    if love.system.getOS() == WEB_OS then
+        ShowNotification("Saving achievements/score works\non downloaded version only!")
+        return
+    end
     local data = love.filesystem.read(achievementsSaveFileName())
     if data == nil then return end
     local achievementList = deserialize(data)
