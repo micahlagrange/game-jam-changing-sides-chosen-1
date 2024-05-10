@@ -655,7 +655,7 @@ function love.draw()
         local goNextLevelText = ""
         local warningText = nil
         if gameLevel % 5 == 4 then warningText = "Elite zeroes are\non their way" end
-        if gameLevel == 7 then warningText = "1,3,7,9 on keypad to\nmove diagonally" end
+        if gameLevel == 7 then warningText = "qezc or numpad 1379\nmoves diagonally" end
         if diagonalable then
             warningText = "An upgraded zero swarm...\nTHEY ATTACK DIAGONALLY\n   pick up a *"
         end
